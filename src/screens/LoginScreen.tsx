@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,25 +7,56 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PRIMARY_GREEN = '#2E7D32';
 const COR_ERRO = '#D32F2F';
 
+const STORAGE_KEYS = {
+  attendantName: 'attendantName',
+};
+
 export default function LoginScreen() {
   const navigation = useNavigation<any>();
+
+  const [loading, setLoading] = useState(true);
 
   const [name, setName] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function boot() {
+      try {
+        const savedName = await AsyncStorage.getItem(STORAGE_KEYS.attendantName);
+
+        if (savedName && savedName.trim().length >= 2) {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'MainTabs' }],
+          });
+          return;
+        }
+      } catch (e) {
+        // Se der erro, só continua no login normal
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    boot();
+  }, [navigation]);
 
   function handleChangePin(text: string) {
     const digitsOnly = text.replace(/\D/g, '').slice(0, 6);
     setPin(digitsOnly);
   }
 
-  function handleLogin() {
+  async function handleLogin() {
     const trimmedName = name.trim();
 
     if (!trimmedName || trimmedName.length < 2) {
@@ -46,10 +77,50 @@ export default function LoginScreen() {
 
     setError(null);
 
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'MainTabs' }],
-    });
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.attendantName, trimmedName);
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs' }],
+      });
+    } catch (e) {
+      setError('Não consegui salvar seu login. Tente de novo.');
+    }
+  }
+
+  async function handleTrocarAtendente() {
+    Alert.alert(
+      'Trocar atendente',
+      'Isso vai apagar o nome salvo e voltar para o Login.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Trocar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await AsyncStorage.removeItem(STORAGE_KEYS.attendantName);
+              setName('');
+              setPin('');
+              setError(null);
+              // Você já está no Login, então só limpa mesmo.
+            } catch (e) {
+              setError('Não consegui limpar o nome salvo.');
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.loadingWrap}>
+        <ActivityIndicator size="large" />
+        <Text style={styles.loadingText}>Carregando...</Text>
+      </View>
+    );
   }
 
   return (
@@ -97,7 +168,7 @@ export default function LoginScreen() {
           <Text style={styles.primaryButtonText}>Entrar</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.smallLink}>
+        <TouchableOpacity style={styles.smallLink} onPress={handleTrocarAtendente}>
           <Text style={styles.smallLinkText}>Trocar atendente depois</Text>
         </TouchableOpacity>
       </View>
@@ -106,6 +177,18 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
+  loadingWrap: {
+    flex: 1,
+    backgroundColor: '#FAFAFA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#424242',
+  },
   container: {
     flex: 1,
     backgroundColor: '#FAFAFA',
