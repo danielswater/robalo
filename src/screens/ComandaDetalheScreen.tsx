@@ -12,6 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { PaymentMethod, useComandas } from '../context/ComandaContext';
 
@@ -33,6 +34,7 @@ function paymentLabel(p: PaymentMethod) {
 export default function ComandaDetalheScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
+  const insets = useSafeAreaInsets();
 
   const params = (route.params || {}) as RouteParams;
   const comandaId = params.id;
@@ -158,7 +160,8 @@ export default function ComandaDetalheScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topBar}>
+      {/* ✅ Safe Area TOP: evita header colado na barra do celular */}
+      <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={22} color={TEXT} />
         </TouchableOpacity>
@@ -186,6 +189,7 @@ export default function ComandaDetalheScreen() {
             data={items}
             keyExtractor={(it) => it.id}
             ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+            contentContainerStyle={{ paddingBottom: 12 }}
             renderItem={({ item }) => (
               <TouchableOpacity
                 activeOpacity={0.85}
@@ -214,7 +218,8 @@ export default function ComandaDetalheScreen() {
         )}
       </View>
 
-      <View style={styles.footer}>
+      {/* ✅ Safe Area BOTTOM: evita botões atrás dos botões do Android */}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>Total</Text>
           <Text style={styles.totalValue}>R$ {total.toFixed(2)}</Text>
@@ -323,14 +328,12 @@ export default function ComandaDetalheScreen() {
   );
 }
 
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
 
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 14,
     paddingHorizontal: 16,
     paddingBottom: 12,
     backgroundColor: WHITE,
