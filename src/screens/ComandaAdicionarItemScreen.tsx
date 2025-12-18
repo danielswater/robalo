@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { MOCK_PRODUCTS, Product } from '../data/mockProducts';
@@ -11,9 +12,19 @@ type RouteParams = {
   nickname: string;
 };
 
+const PRIMARY_GREEN = '#2E7D32';
+const SECONDARY_BLUE = '#1976D2';
+const BG = '#F5F5F5';
+const WHITE = '#FFFFFF';
+const TEXT = '#212121';
+const MUTED = '#757575';
+const BORDER = '#E0E0E0';
+
 export default function ComandaAdicionarItemScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
+  const insets = useSafeAreaInsets();
+
   const params = (route.params || {}) as RouteParams;
 
   const comandaId = params.id;
@@ -22,6 +33,8 @@ export default function ComandaAdicionarItemScreen() {
   const { addItemToComanda } = useComandas();
 
   const [search, setSearch] = useState('');
+
+  // ✅ Carrinho: quantidade começa em 0 (nada selecionado)
   const [qtyByProduct, setQtyByProduct] = useState<Record<string, number>>({});
 
   const filtered = useMemo(() => {
@@ -30,39 +43,77 @@ export default function ComandaAdicionarItemScreen() {
     return MOCK_PRODUCTS.filter((p) => p.name.toLowerCase().includes(s));
   }, [search]);
 
-  const getQty = (productId: string) => qtyByProduct[productId] ?? 1;
+  const getQty = (productId: string) => qtyByProduct[productId] ?? 0;
 
   const changeQty = (productId: string, delta: number) => {
     setQtyByProduct((prev) => {
-      const current = prev[productId] ?? 1;
-      const next = Math.max(1, current + delta);
+      const current = prev[productId] ?? 0;
+      const next = Math.max(0, current + delta);
+
+      // se voltar pra 0, remove do objeto pra ficar limpo
+      if (next === 0) {
+        const copy = { ...prev };
+        delete copy[productId];
+        return copy;
+      }
+
       return { ...prev, [productId]: next };
     });
   };
 
-  const addProduct = (p: Product) => {
-    const qty = getQty(p.id);
+  const totals = useMemo(() => {
+    const entries = Object.entries(qtyByProduct);
+    let items = 0;
+    let products = 0;
 
-    addItemToComanda(comandaId, {
-      productId: p.id,
-      name: p.name,
-      price: p.price,
-      qty,
-    });
+    for (const [, qty] of entries) {
+      if (qty > 0) {
+        items += qty;
+        products += 1;
+      }
+    }
 
-    Alert.alert('Adicionado', `${qty}x ${p.name} na comanda ${nickname}`);
+    return { items, products };
+  }, [qtyByProduct]);
+
+  const addAllToComanda = () => {
+    if (totals.items <= 0) return;
+
+    // usa a lista total (MOCK_PRODUCTS) pra garantir que acha o produto mesmo se estiver filtrado
+    for (const [productId, qty] of Object.entries(qtyByProduct)) {
+      if (qty <= 0) continue;
+
+      const p = MOCK_PRODUCTS.find((x) => x.id === productId);
+      if (!p) continue;
+
+      addItemToComanda(comandaId, {
+        productId: p.id,
+        name: p.name,
+        price: p.price,
+        qty,
+      });
+    }
+
+    // limpa e volta
+    setQtyByProduct({});
     navigation.goBack();
   };
 
+  const buttonLabel =
+    totals.items <= 0
+      ? 'Adicionar itens à comanda'
+      : `Adicionar (${totals.items} item${totals.items === 1 ? '' : 's'})`;
+
   return (
-    <View style={styles.container}>
-      <View style={styles.topBar}>
+    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+      {/* ✅ Safe Area no topo pra não ficar embaixo da barra do celular */}
+      <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={22} color="#1B1B1B" />
+          <Ionicons name="arrow-back" size={22} color={TEXT} />
         </TouchableOpacity>
 
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Adicionar item</Text>
+          <Text style={styles.title}>Adicionar itens</Text>
           <Text style={styles.subTitle}>{nickname}</Text>
         </View>
       </View>
@@ -80,6 +131,7 @@ export default function ComandaAdicionarItemScreen() {
           data={filtered}
           keyExtractor={(it) => it.id}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+          contentContainerStyle={{ paddingBottom: 16 }}
           renderItem={({ item }) => {
             const qty = getQty(item.id);
 
@@ -91,8 +143,12 @@ export default function ComandaAdicionarItemScreen() {
                 </View>
 
                 <View style={styles.qtyBox}>
-                  <TouchableOpacity style={styles.qtyBtn} onPress={() => changeQty(item.id, -1)}>
-                    <Text style={styles.qtyBtnText}>-</Text>
+                  <TouchableOpacity
+                    style={[styles.qtyBtn, qty === 0 && styles.qtyBtnDisabled]}
+                    onPress={() => changeQty(item.id, -1)}
+                    disabled={qty === 0}
+                  >
+                    <Text style={[styles.qtyBtnText, qty === 0 && styles.qtyBtnTextDisabled]}>-</Text>
                   </TouchableOpacity>
 
                   <Text style={styles.qtyText}>{qty}</Text>
@@ -101,14 +157,31 @@ export default function ComandaAdicionarItemScreen() {
                     <Text style={styles.qtyBtnText}>+</Text>
                   </TouchableOpacity>
                 </View>
-
-                <TouchableOpacity style={styles.addBtn} onPress={() => addProduct(item)}>
-                  <Text style={styles.addBtnText}>Adicionar</Text>
-                </TouchableOpacity>
               </View>
             );
           }}
         />
+      </View>
+
+      {/* ✅ Botão final (carrinho) */}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+        {totals.items > 0 ? (
+          <Text style={styles.footerHint}>
+            {totals.products} produto(s) • {totals.items} item(ns)
+          </Text>
+        ) : (
+          <Text style={styles.footerHintMuted}>Escolha as quantidades e toque em “Adicionar”.</Text>
+        )}
+
+        <TouchableOpacity
+          style={[styles.primaryBtn, totals.items <= 0 && styles.primaryBtnDisabled]}
+          disabled={totals.items <= 0}
+          onPress={addAllToComanda}
+        >
+          <Text style={[styles.primaryBtnText, totals.items <= 0 && styles.primaryBtnTextDisabled]}>
+            {buttonLabel}
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -120,60 +193,75 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 14,
     paddingHorizontal: 16,
     paddingBottom: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: WHITE,
     borderBottomWidth: 1,
     borderBottomColor: '#EEEEEE',
   },
   iconBtn: { paddingRight: 12, paddingVertical: 6 },
-  title: { fontSize: 18, fontWeight: '800', color: '#1B1B1B' },
+  title: { fontSize: 18, fontWeight: '800', color: TEXT },
   subTitle: { marginTop: 2, fontSize: 12, color: '#616161' },
 
   body: { flex: 1, padding: 16 },
 
   search: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: WHITE,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: BORDER,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    color: '#1B1B1B',
+    color: TEXT,
     marginBottom: 12,
   },
 
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: WHITE,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: BORDER,
     borderRadius: 12,
     padding: 12,
   },
-  cardTitle: { fontSize: 14, fontWeight: '800', color: '#1B1B1B' },
-  cardSub: { marginTop: 2, fontSize: 12, color: '#757575' },
+  cardTitle: { fontSize: 14, fontWeight: '800', color: TEXT },
+  cardSub: { marginTop: 2, fontSize: 12, color: MUTED },
 
   qtyBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 10,
+    marginLeft: 10,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: BORDER,
     borderRadius: 10,
     overflow: 'hidden',
   },
-  qtyBtn: { paddingHorizontal: 10, paddingVertical: 8, backgroundColor: '#FAFAFA' },
-  qtyBtnText: { fontSize: 16, fontWeight: '900', color: '#1B1B1B' },
-  qtyText: { paddingHorizontal: 10, fontSize: 13, fontWeight: '800', color: '#1B1B1B' },
+  qtyBtn: { paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#FAFAFA' },
+  qtyBtnDisabled: { backgroundColor: '#F2F2F2' },
+  qtyBtnText: { fontSize: 16, fontWeight: '900', color: TEXT },
+  qtyBtnTextDisabled: { color: '#9E9E9E' },
+  qtyText: { paddingHorizontal: 12, fontSize: 13, fontWeight: '800', color: TEXT, minWidth: 24, textAlign: 'center' },
 
-  addBtn: {
-    backgroundColor: '#2E7D32',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
+  footer: {
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+    backgroundColor: WHITE,
+    paddingHorizontal: 16,
+    paddingTop: 12,
   },
-  addBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
+  footerHint: { marginBottom: 10, fontSize: 12, color: MUTED, fontWeight: '800' },
+  footerHintMuted: { marginBottom: 10, fontSize: 12, color: MUTED, fontWeight: '700' },
+
+  primaryBtn: {
+    backgroundColor: PRIMARY_GREEN,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  primaryBtnDisabled: {
+    backgroundColor: '#C8E6C9',
+  },
+  primaryBtnText: { color: WHITE, fontSize: 14, fontWeight: '900' },
+  primaryBtnTextDisabled: { color: '#FFFFFF' },
 });

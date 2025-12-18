@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Switch,
+  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -50,6 +51,11 @@ function moneyInputToNumber(value: string) {
   return Number(digits) / 100;
 }
 
+function numberToMoneyInput(value: number) {
+  if (!Number.isFinite(value) || value < 0) return 'R$ 0,00';
+  return formatMoney(value);
+}
+
 function newId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
@@ -77,23 +83,36 @@ export default function ProdutosScreen() {
     );
   };
 
-  const [createOpen, setCreateOpen] = useState(false);
+  // ✅ criar/editar produto (modal)
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   const [newName, setNewName] = useState('');
   const [priceInput, setPriceInput] = useState('R$ 0,00');
   const [newUnitType, setNewUnitType] = useState<UnitType>('unidade');
   const [newActive, setNewActive] = useState(true);
 
   const openCreate = () => {
+    setEditingId(null);
     setNewName('');
     setPriceInput('R$ 0,00');
     setNewUnitType('unidade');
     setNewActive(true);
-    setCreateOpen(true);
+    setModalOpen(true);
   };
 
-  const closeCreate = () => setCreateOpen(false);
+  const openEdit = (p: Produto) => {
+    setEditingId(p.id);
+    setNewName(p.name);
+    setPriceInput(numberToMoneyInput(p.price));
+    setNewUnitType(p.unitType);
+    setNewActive(p.active);
+    setModalOpen(true);
+  };
 
-  const saveCreate = () => {
+  const closeModal = () => setModalOpen(false);
+
+  const saveModal = () => {
     const name = newName.trim();
     if (name.length < 2) {
       Alert.alert('Nome inválido', 'Digite o nome do produto.');
@@ -106,18 +125,34 @@ export default function ProdutosScreen() {
       return;
     }
 
-    setProdutos((prev) => [
-      ...prev,
-      {
-        id: newId(),
-        name,
-        price,
-        unitType: newUnitType,
-        active: newActive,
-      },
-    ]);
+    if (editingId) {
+      setProdutos((prev) =>
+        prev.map((p) =>
+          p.id === editingId
+            ? {
+              ...p,
+              name,
+              price,
+              unitType: newUnitType,
+              active: newActive,
+            }
+            : p
+        )
+      );
+    } else {
+      setProdutos((prev) => [
+        ...prev,
+        {
+          id: newId(),
+          name,
+          price,
+          unitType: newUnitType,
+          active: newActive,
+        },
+      ]);
+    }
 
-    setCreateOpen(false);
+    setModalOpen(false);
   };
 
   return (
@@ -149,7 +184,10 @@ export default function ProdutosScreen() {
           contentContainerStyle={{ paddingBottom: 16 }}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            <Pressable
+              onPress={() => openEdit(item)}
+              style={({ pressed }) => [styles.card, pressed && { opacity: 0.92 }]}
+            >
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>{item.name}</Text>
                 <Text style={styles.cardSub}>
@@ -174,30 +212,36 @@ export default function ProdutosScreen() {
                   </Text>
                 </View>
 
-                <TouchableOpacity
+                {/* ✅ Botão separado: não abre o modal */}
+                <Pressable
+                  onPress={(e: any) => {
+                    e?.stopPropagation?.();
+                    toggleActive(item.id);
+                  }}
                   style={[
                     styles.smallBtn,
                     item.active ? styles.smallBtnOff : styles.smallBtnOn,
                   ]}
-                  onPress={() => toggleActive(item.id)}
                 >
                   <Text style={styles.smallBtnText}>
                     {item.active ? 'Inativar' : 'Ativar'}
                   </Text>
-                </TouchableOpacity>
+                </Pressable>
               </View>
-            </View>
+            </Pressable>
           )}
         />
       )}
 
-      <Modal transparent visible={createOpen} animationType="fade" onRequestClose={closeCreate}>
+      <Modal transparent visible={modalOpen} animationType="fade" onRequestClose={closeModal}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalOverlay}
         >
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Novo produto</Text>
+            <Text style={styles.modalTitle}>
+              {editingId ? 'Editar produto' : 'Novo produto'}
+            </Text>
 
             <Text style={styles.modalLabel}>Nome</Text>
             <TextInput
@@ -242,11 +286,11 @@ export default function ProdutosScreen() {
             </View>
 
             <View style={styles.modalButtonsRow}>
-              <TouchableOpacity style={styles.modalBtnSecondary} onPress={closeCreate}>
+              <TouchableOpacity style={styles.modalBtnSecondary} onPress={closeModal}>
                 <Text style={styles.modalBtnSecondaryText}>Cancelar</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.modalBtnPrimary} onPress={saveCreate}>
+              <TouchableOpacity style={styles.modalBtnPrimary} onPress={saveModal}>
                 <Text style={styles.modalBtnPrimaryText}>Salvar</Text>
               </TouchableOpacity>
             </View>
