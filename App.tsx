@@ -9,45 +9,23 @@ import { Ionicons } from '@expo/vector-icons';
 
 import LoginScreen from './src/screens/LoginScreen';
 import ComandasScreen from './src/screens/ComandasScreen';
-import ComandaDetalheScreen from './src/screens/ComandaDetalheScreen';
-import ComandaAdicionarItemScreen from './src/screens/ComandaAdicionarItemScreen';
 import ProdutosScreen from './src/screens/ProdutosScreen';
 import RelatoriosScreen from './src/screens/RelatoriosScreen';
+
+import ComandaDetalheScreen from './src/screens/ComandaDetalheScreen';
+import ComandaAdicionarItemScreen from './src/screens/ComandaAdicionarItemScreen';
 
 import AppHeaderTitle from './src/components/AppHeaderTitle';
 import { ComandaProvider } from './src/context/ComandaContext';
 
-const RootStack = createNativeStackNavigator();
+const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
-const ComandasStack = createNativeStackNavigator();
 
 const PRIMARY_GREEN = '#2E7D32';
 
 const STORAGE_KEYS = {
   attendantName: 'attendantName',
 };
-
-function ComandasStackNavigator() {
-  return (
-    <ComandasStack.Navigator>
-      <ComandasStack.Screen
-        name="ComandasHome"
-        component={ComandasScreen}
-        options={{ headerShown: false }}
-      />
-      <ComandasStack.Screen
-        name="ComandaDetalhe"
-        component={ComandaDetalheScreen}
-        options={{ headerShown: false }}
-      />
-      <ComandasStack.Screen
-        name="ComandaAdicionarItem"
-        component={ComandaAdicionarItemScreen}
-        options={{ headerShown: false }}
-      />
-    </ComandasStack.Navigator>
-  );
-}
 
 function MainTabs() {
   return (
@@ -88,7 +66,7 @@ function MainTabs() {
                           index: 0,
                           routes: [{ name: 'Login' }],
                         });
-                      } catch {
+                      } catch (e) {
                         Alert.alert('Erro', 'Não consegui trocar o atendente.');
                       }
                     },
@@ -115,15 +93,19 @@ function MainTabs() {
         tabBarIcon: ({ color, size }) => {
           let iconName: any;
 
-          if (route.name === 'Comandas') iconName = 'clipboard-outline';
-          if (route.name === 'Produtos') iconName = 'fast-food-outline';
-          if (route.name === 'Relatórios') iconName = 'stats-chart-outline';
+          if (route.name === 'Comandas') {
+            iconName = 'clipboard-outline';
+          } else if (route.name === 'Produtos') {
+            iconName = 'fast-food-outline';
+          } else if (route.name === 'Relatórios') {
+            iconName = 'stats-chart-outline';
+          }
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
       })}
     >
-      <Tab.Screen name="Comandas" component={ComandasStackNavigator} options={{ title: 'Comandas' }} />
+      <Tab.Screen name="Comandas" component={ComandasScreen} options={{ title: 'Comandas' }} />
       <Tab.Screen name="Produtos" component={ProdutosScreen} options={{ title: 'Produtos' }} />
       <Tab.Screen name="Relatórios" component={RelatoriosScreen} options={{ title: 'Relatórios' }} />
     </Tab.Navigator>
@@ -134,10 +116,22 @@ export default function App() {
   return (
     <ComandaProvider>
       <NavigationContainer>
-        <RootStack.Navigator>
-          <RootStack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-          <RootStack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
-        </RootStack.Navigator>
+        <Stack.Navigator>
+          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
+
+          {/* ✅ Fluxo correto: telas da Comanda ficam no Stack (fora das Tabs) */}
+          <Stack.Screen
+            name="ComandaDetalhe"
+            component={ComandaDetalheScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="ComandaAdicionarItem"
+            component={ComandaAdicionarItemScreen}
+            options={{ headerShown: false }}
+          />
+        </Stack.Navigator>
       </NavigationContainer>
     </ComandaProvider>
   );
