@@ -1,6 +1,13 @@
+// src/context/ComandaContext.tsx
 import React, { createContext, useContext, useMemo, useState } from 'react';
 
 export type PaymentMethod = 'CASH' | 'CARD' | 'PIX';
+
+export type AttendantHistoryItem = {
+  name: string;
+  from: string;
+  to: string | null;
+};
 
 export type ComandaItem = {
   id: string;
@@ -16,6 +23,8 @@ export type Comanda = {
   id: string;
   nickname: string;
   status: ComandaStatus;
+  currentAttendant: string;
+  attendantHistory: AttendantHistoryItem[];
   paymentMethod?: PaymentMethod;
   closedAt?: string;
   items: ComandaItem[];
@@ -29,11 +38,13 @@ type ComandaContextValue = {
   isComandaClosed: (id: string) => boolean;
 
   seedIfEmpty: () => void;
-  createComanda: (nickname?: string) => void;
+  createComanda: (nickname?: string, attendant?: string) => void;
 
   addItemToComanda: (comandaId: string, item: Omit<ComandaItem, 'id'>) => boolean;
   updateItemQty: (comandaId: string, itemId: string, qty: number) => boolean;
   removeItemFromComanda: (comandaId: string, itemId: string) => boolean;
+
+  changeAttendant: (comandaId: string, newName: string) => boolean;
 
   closeComanda: (comandaId: string, paymentMethod: PaymentMethod) => boolean;
 };
@@ -55,15 +66,23 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
   const seedIfEmpty = () => {
     setComandas((prev) => {
       if (prev.length > 0) return prev;
+      const now = new Date().toISOString();
       return [
-        { id: '1', nickname: 'Mesa 01', status: 'OPEN', items: [] },
-        { id: '2', nickname: 'João', status: 'OPEN', items: [] },
+        {
+          id: '1',
+          nickname: 'Mesa 01',
+          status: 'OPEN',
+          currentAttendant: 'Atendente',
+          attendantHistory: [{ name: 'Atendente', from: now, to: null }],
+          items: [],
+        },
       ];
     });
   };
 
-  const createComanda = (nickname = '') => {
+  const createComanda = (nickname = '', attendant = 'Atendente') => {
     const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const now = new Date().toISOString();
 
     setComandas((prev) => [
       ...prev,
@@ -71,6 +90,8 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
         id,
         nickname: nickname || 'Sem apelido',
         status: 'OPEN',
+        currentAttendant: attendant,
+        attendantHistory: [{ name: attendant, from: now, to: null }],
         items: [],
       },
     ]);
@@ -92,8 +113,7 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
 
     setComandas((prev) =>
       prev.map((c) => {
-        if (c.id !== comandaId) return c;
-        if (c.status === 'CLOSED') return c;
+        if (c.id !== comandaId || c.status === 'CLOSED') return c;
 
         const existingIndex = c.items.findIndex(
           (it) => it.productId === item.productId
@@ -110,16 +130,16 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
           return { ...c, items: copy };
         }
 
-        const newItemId = `${Date.now()}-${Math.random()
-          .toString(16)
-          .slice(2)}`;
-
         changed = true;
         return {
           ...c,
           items: [
             ...c.items,
-            { ...item, id: newItemId, qty: normalizeQty(item.qty) },
+            {
+              ...item,
+              id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+              qty: normalizeQty(item.qty),
+            },
           ],
         };
       })
@@ -134,8 +154,7 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
 
     setComandas((prev) =>
       prev.map((c) => {
-        if (c.id !== comandaId) return c;
-        if (c.status === 'CLOSED') return c;
+        if (c.id !== comandaId || c.status === 'CLOSED') return c;
 
         const nextItems = c.items.map((it) => {
           if (it.id !== itemId) return it;
@@ -155,12 +174,38 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
 
     setComandas((prev) =>
       prev.map((c) => {
-        if (c.id !== comandaId) return c;
-        if (c.status === 'CLOSED') return c;
+        if (c.id !== comandaId || c.status === 'CLOSED') return c;
 
         const nextItems = c.items.filter((it) => it.id !== itemId);
         changed = nextItems.length !== c.items.length;
         return { ...c, items: nextItems };
+      })
+    );
+
+    return changed;
+  };
+
+  const changeAttendant = (comandaId: string, newName: string) => {
+    if (!newName.trim()) return false;
+    let changed = false;
+    const now = new Date().toISOString();
+
+    setComandas((prev) =>
+      prev.map((c) => {
+        if (c.id !== comandaId || c.status === 'CLOSED') return c;
+
+        const history = c.attendantHistory.map((h) =>
+          h.to === null ? { ...h, to: now } : h
+        );
+
+        history.push({ name: newName.trim(), from: now, to: null });
+
+        changed = true;
+        return {
+          ...c,
+          currentAttendant: newName.trim(),
+          attendantHistory: history,
+        };
       })
     );
 
@@ -172,8 +217,7 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
 
     setComandas((prev) =>
       prev.map((c) => {
-        if (c.id !== comandaId) return c;
-        if (c.status === 'CLOSED') return c;
+        if (c.id !== comandaId || c.status === 'CLOSED') return c;
 
         changed = true;
         return {
@@ -199,6 +243,7 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
       addItemToComanda,
       updateItemQty,
       removeItemFromComanda,
+      changeAttendant,
       closeComanda,
     }),
     [comandas]
@@ -213,7 +258,8 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
 
 export function useComandas() {
   const ctx = useContext(ComandaContext);
-  if (!ctx)
+  if (!ctx) {
     throw new Error('useComandas precisa estar dentro do ComandaProvider');
+  }
   return ctx;
 }
