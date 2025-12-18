@@ -1,3 +1,4 @@
+// src/screens/ComandaDetalheScreen.tsx
 import React, { useMemo, useState } from 'react';
 import {
   View,
@@ -19,11 +20,13 @@ import { PaymentMethod, useComandas } from '../context/ComandaContext';
 type RouteParams = { id: string; nickname: string };
 
 const PRIMARY_GREEN = '#2E7D32';
+const SECONDARY_BLUE = '#1976D2';
 const BORDER = '#E0E0E0';
-const BG = '#FAFAFA';
+const BG = '#F5F5F5';
 const WHITE = '#FFFFFF';
-const TEXT = '#1B1B1B';
+const TEXT = '#212121';
 const MUTED = '#757575';
+const ERROR_RED = '#D32F2F';
 
 function paymentLabel(p: PaymentMethod) {
   if (p === 'CASH') return 'Dinheiro';
@@ -47,6 +50,8 @@ export default function ComandaDetalheScreen() {
     updateItemQty,
     removeItemFromComanda,
     closeComanda,
+    changeAttendant,
+    cancelEmptyComanda,
   } = useComandas();
 
   const comanda = getComandaById(comandaId);
@@ -54,14 +59,18 @@ export default function ComandaDetalheScreen() {
   const closed = isComandaClosed(comandaId);
   const items = useMemo(() => comanda?.items ?? [], [comanda]);
 
-  // editar item (passo 1)
+  // editar item
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [qtyText, setQtyText] = useState('1');
 
-  // fechar comanda (passo 2)
+  // fechar comanda
   const [closing, setClosing] = useState(false);
   const [payment, setPayment] = useState<PaymentMethod>('PIX');
+
+  // trocar atendente
+  const [attModal, setAttModal] = useState(false);
+  const [newAttendant, setNewAttendant] = useState('');
 
   const openEdit = (itemId: string, name: string, qty: number) => {
     if (closed) {
@@ -158,9 +167,67 @@ export default function ComandaDetalheScreen() {
     ]);
   };
 
+  const openTrocarAtendente = () => {
+    if (closed) {
+      Alert.alert('Comanda fechada', 'Essa comanda já foi fechada. Não dá pra trocar atendente.');
+      return;
+    }
+    setNewAttendant((comanda?.currentAttendant || '').trim());
+    setAttModal(true);
+  };
+
+  const confirmTrocarAtendente = () => {
+    const next = (newAttendant || '').trim();
+
+    if (!next || next.length < 2) {
+      Alert.alert('Nome inválido', 'Digite o nome do atendente.');
+      return;
+    }
+
+    if ((comanda?.currentAttendant || '').trim() === next) {
+      setAttModal(false);
+      return;
+    }
+
+    const ok = changeAttendant(comandaId, next);
+
+    if (!ok) {
+      Alert.alert('Erro', 'Não consegui trocar o atendente.');
+      return;
+    }
+
+    setAttModal(false);
+    Alert.alert('Pronto', `Agora o atendente é: ${next}`);
+  };
+
+  const confirmCancelarComandaVazia = () => {
+    if (closed) return;
+    if (items.length > 0) {
+      Alert.alert('Não dá', 'Essa comanda já tem itens. Só pode fechar, não cancelar.');
+      return;
+    }
+
+    Alert.alert('Cancelar comanda', 'Essa comanda está vazia. Quer cancelar/excluir?', [
+      { text: 'Não', style: 'cancel' },
+      {
+        text: 'Sim, cancelar',
+        style: 'destructive',
+        onPress: () => {
+          const ok = cancelEmptyComanda(comandaId);
+          if (!ok) {
+            Alert.alert('Ops', 'Não consegui cancelar. Tente de novo.');
+            return;
+          }
+          Alert.alert('Cancelada', 'Comanda vazia cancelada.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+        },
+      },
+    ]);
+  };
+
+  const currentAtt = (comanda?.currentAttendant || '—').trim() || '—';
+
   return (
     <View style={styles.container}>
-      {/* ✅ Safe Area TOP: evita header colado na barra do celular */}
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={22} color={TEXT} />
@@ -168,8 +235,10 @@ export default function ComandaDetalheScreen() {
 
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>{nickname}</Text>
-          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 2 }}>
+
+          <View style={styles.subRow}>
             <Text style={styles.subTitle}>{closed ? 'Comanda fechada' : 'Comanda aberta'}</Text>
+
             {closed && comanda?.paymentMethod ? (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{paymentLabel(comanda.paymentMethod)}</Text>
@@ -180,6 +249,24 @@ export default function ComandaDetalheScreen() {
       </View>
 
       <View style={styles.box}>
+        <View style={styles.attRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.attLabel}>Atendente atual</Text>
+            <Text style={styles.attValue}>{currentAtt}</Text>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.attBtn, closed && styles.btnDisabled]}
+            disabled={closed}
+            onPress={openTrocarAtendente}
+          >
+            <Ionicons name="person-outline" size={18} color={SECONDARY_BLUE} />
+            <Text style={styles.attBtnText}>Trocar</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.divider} />
+
         <Text style={styles.sectionTitle}>Itens</Text>
 
         {items.length === 0 ? (
@@ -218,7 +305,6 @@ export default function ComandaDetalheScreen() {
         )}
       </View>
 
-      {/* ✅ Safe Area BOTTOM: evita botões atrás dos botões do Android */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>Total</Text>
@@ -247,8 +333,16 @@ export default function ComandaDetalheScreen() {
             Fechar comanda
           </Text>
         </TouchableOpacity>
+
+        {/* ✅ Só aparece se estiver ABERTA e VAZIA */}
+        {!closed && items.length === 0 ? (
+          <TouchableOpacity style={styles.dangerBtn} onPress={confirmCancelarComandaVazia}>
+            <Text style={styles.dangerBtnText}>Cancelar comanda</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
+      {/* Modal editar item */}
       <Modal transparent visible={!!editingItemId} animationType="fade" onRequestClose={closeEdit}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -283,6 +377,7 @@ export default function ComandaDetalheScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Modal fechar comanda */}
       <Modal transparent visible={closing} animationType="fade" onRequestClose={() => setClosing(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -324,6 +419,37 @@ export default function ComandaDetalheScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Modal trocar atendente */}
+      <Modal transparent visible={attModal} animationType="fade" onRequestClose={() => setAttModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Trocar atendente</Text>
+            <Text style={styles.modalSub}>Digite o nome do novo atendente</Text>
+
+            <Text style={styles.modalLabel}>Nome</Text>
+            <TextInput
+              value={newAttendant}
+              onChangeText={setNewAttendant}
+              style={styles.modalInput}
+              placeholder="Ex: Ana"
+              placeholderTextColor="#9E9E9E"
+              maxLength={40}
+              autoCapitalize="words"
+            />
+
+            <View style={styles.modalButtonsRow}>
+              <TouchableOpacity style={styles.modalBtnSecondary} onPress={() => setAttModal(false)}>
+                <Text style={styles.modalBtnSecondaryText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.modalBtnPrimary} onPress={confirmTrocarAtendente}>
+                <Text style={styles.modalBtnPrimaryText}>Confirmar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -338,11 +464,13 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     backgroundColor: WHITE,
     borderBottomWidth: 1,
-    borderBottomColor: '#EEEEEE',
+    borderBottomColor: '#E0E0E0',
   },
   iconBtn: { paddingRight: 12, paddingVertical: 6 },
   title: { fontSize: 18, fontWeight: '800', color: TEXT },
-  subTitle: { fontSize: 12, color: '#616161' },
+
+  subRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 2 },
+  subTitle: { fontSize: 12, color: MUTED },
 
   badge: {
     borderWidth: 1,
@@ -363,6 +491,26 @@ const styles = StyleSheet.create({
     padding: 14,
     flex: 1,
   },
+
+  attRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  attLabel: { fontSize: 12, color: MUTED, fontWeight: '700' },
+  attValue: { marginTop: 2, fontSize: 16, color: TEXT, fontWeight: '800' },
+
+  attBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: SECONDARY_BLUE,
+    backgroundColor: WHITE,
+  },
+  attBtnText: { color: SECONDARY_BLUE, fontSize: 14, fontWeight: '900' },
+
+  divider: { height: 1, backgroundColor: '#EEEEEE', marginVertical: 12 },
+
   sectionTitle: { fontSize: 14, fontWeight: '800', color: TEXT, marginBottom: 8 },
   muted: { fontSize: 13, color: MUTED },
 
@@ -383,7 +531,7 @@ const styles = StyleSheet.create({
   footer: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#EEEEEE',
+    borderTopColor: '#E0E0E0',
     backgroundColor: WHITE,
   },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
@@ -408,6 +556,17 @@ const styles = StyleSheet.create({
     borderColor: PRIMARY_GREEN,
   },
   secondaryBtnText: { color: PRIMARY_GREEN, fontSize: 14, fontWeight: '800' },
+
+  dangerBtn: {
+    marginTop: 10,
+    backgroundColor: WHITE,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: ERROR_RED,
+  },
+  dangerBtnText: { color: ERROR_RED, fontSize: 14, fontWeight: '900' },
 
   btnDisabled: { opacity: 0.5 },
   btnDisabledOutline: { borderColor: '#BDBDBD' },
@@ -460,9 +619,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#1976D2',
+    borderColor: SECONDARY_BLUE,
   },
-  modalBtnSecondaryText: { color: '#1976D2', fontSize: 14, fontWeight: '900' },
+  modalBtnSecondaryText: { color: SECONDARY_BLUE, fontSize: 14, fontWeight: '900' },
 
   modalRemoveBtn: {
     marginTop: 12,
@@ -470,10 +629,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#D32F2F',
+    borderColor: ERROR_RED,
     backgroundColor: WHITE,
   },
-  modalRemoveText: { color: '#D32F2F', fontSize: 14, fontWeight: '900' },
+  modalRemoveText: { color: ERROR_RED, fontSize: 14, fontWeight: '900' },
 
   payOption: {
     borderWidth: 1,
