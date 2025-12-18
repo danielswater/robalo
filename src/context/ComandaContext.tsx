@@ -46,6 +46,8 @@ type ComandaContextValue = {
 
   changeAttendant: (comandaId: string, newName: string) => boolean;
 
+  cancelEmptyComanda: (comandaId: string) => boolean;
+
   closeComanda: (comandaId: string, paymentMethod: PaymentMethod) => boolean;
 };
 
@@ -99,8 +101,7 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
 
   const getComandaById = (id: string) => comandas.find((c) => c.id === id);
 
-  const isComandaClosed = (id: string) =>
-    getComandaById(id)?.status === 'CLOSED';
+  const isComandaClosed = (id: string) => getComandaById(id)?.status === 'CLOSED';
 
   const getComandaTotal = (id: string) => {
     const c = getComandaById(id);
@@ -115,9 +116,7 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
       prev.map((c) => {
         if (c.id !== comandaId || c.status === 'CLOSED') return c;
 
-        const existingIndex = c.items.findIndex(
-          (it) => it.productId === item.productId
-        );
+        const existingIndex = c.items.findIndex((it) => it.productId === item.productId);
 
         if (existingIndex >= 0) {
           const copy = [...c.items];
@@ -194,10 +193,7 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
       prev.map((c) => {
         if (c.id !== comandaId || c.status === 'CLOSED') return c;
 
-        const history = c.attendantHistory.map((h) =>
-          h.to === null ? { ...h, to: now } : h
-        );
-
+        const history = c.attendantHistory.map((h) => (h.to === null ? { ...h, to: now } : h));
         history.push({ name: newName.trim(), from: now, to: null });
 
         changed = true;
@@ -208,6 +204,23 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
         };
       })
     );
+
+    return changed;
+  };
+
+  // ✅ Regra do MVP: comanda ABERTA e SEM ITENS pode ser cancelada/excluída.
+  const cancelEmptyComanda = (comandaId: string) => {
+    let changed = false;
+
+    setComandas((prev) => {
+      const target = prev.find((c) => c.id === comandaId);
+      if (!target) return prev;
+      if (target.status !== 'OPEN') return prev;
+      if ((target.items || []).length > 0) return prev;
+
+      changed = true;
+      return prev.filter((c) => c.id !== comandaId);
+    });
 
     return changed;
   };
@@ -244,22 +257,17 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
       updateItemQty,
       removeItemFromComanda,
       changeAttendant,
+      cancelEmptyComanda,
       closeComanda,
     }),
     [comandas]
   );
 
-  return (
-    <ComandaContext.Provider value={value}>
-      {children}
-    </ComandaContext.Provider>
-  );
+  return <ComandaContext.Provider value={value}>{children}</ComandaContext.Provider>;
 }
 
 export function useComandas() {
   const ctx = useContext(ComandaContext);
-  if (!ctx) {
-    throw new Error('useComandas precisa estar dentro do ComandaProvider');
-  }
+  if (!ctx) throw new Error('useComandas precisa estar dentro do ComandaProvider');
   return ctx;
 }

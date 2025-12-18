@@ -1,3 +1,4 @@
+// src/screens/ComandasScreen.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -13,6 +14,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useComandas } from '../context/ComandaContext';
 
 const PRIMARY_GREEN = '#2E7D32';
@@ -23,14 +25,39 @@ const TEXT = '#212121';
 const MUTED = '#757575';
 const BORDER = '#E0E0E0';
 
+const STORAGE_KEYS = {
+  attendantName: 'attendantName',
+};
+
 export default function ComandasScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { comandas, seedIfEmpty, createComanda } = useComandas();
 
+  const [attendantName, setAttendantName] = useState('Atendente');
+
   useEffect(() => {
     seedIfEmpty();
   }, [seedIfEmpty]);
+
+  useEffect(() => {
+    let alive = true;
+
+    async function loadAttendant() {
+      try {
+        const saved = await AsyncStorage.getItem(STORAGE_KEYS.attendantName);
+        const name = (saved || '').trim();
+        if (alive) setAttendantName(name.length >= 2 ? name : 'Atendente');
+      } catch {
+        if (alive) setAttendantName('Atendente');
+      }
+    }
+
+    loadAttendant();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -47,18 +74,14 @@ export default function ComandasScreen() {
     navigation.navigate('ComandaDetalhe', { id, nickname: nick });
   };
 
-  // ⚠️ Mantém o fluxo atual do projeto
   const onCreate = () => {
-    // Aqui entra a MESMA lógica que você já tinha antes
-    // (criação local da comanda)
-    createComanda(nickname.trim());
+    createComanda(nickname.trim(), attendantName);
     setCreateOpen(false);
     setNickname('');
   };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Nova comanda */}
       <View style={styles.topArea}>
         <TouchableOpacity style={styles.newBtn} onPress={() => setCreateOpen(true)}>
           <Ionicons name="add" size={18} color={WHITE} />
@@ -90,7 +113,7 @@ export default function ComandasScreen() {
               <View style={styles.card}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cardTitle}>{item.nickname || 'Sem apelido'}</Text>
-                  <Text style={styles.cardSub}>Aberta</Text>
+                  <Text style={styles.cardSub}>Atendente: {item.currentAttendant || '—'}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={MUTED} />
               </View>
@@ -99,7 +122,6 @@ export default function ComandasScreen() {
         />
       )}
 
-      {/* Modal Nova Comanda */}
       <Modal transparent visible={createOpen} animationType="fade" onRequestClose={() => setCreateOpen(false)}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -117,6 +139,8 @@ export default function ComandasScreen() {
               style={styles.modalInput}
               maxLength={30}
             />
+
+            <Text style={styles.helper}>Atendente: {attendantName}</Text>
 
             <View style={styles.modalButtonsRow}>
               <TouchableOpacity style={styles.modalBtnSecondary} onPress={() => setCreateOpen(false)}>
@@ -136,7 +160,6 @@ export default function ComandasScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
-
   topArea: { padding: 16 },
 
   newBtn: {
@@ -203,6 +226,8 @@ const styles = StyleSheet.create({
     backgroundColor: WHITE,
     color: TEXT,
   },
+  helper: { marginTop: 10, fontSize: 13, color: MUTED, fontWeight: '700' },
+
   modalButtonsRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   modalBtnPrimary: {
     flex: 1,
