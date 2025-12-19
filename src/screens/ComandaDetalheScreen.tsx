@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   FlatList,
   Modal,
-  TextInput,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -15,7 +14,9 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+
 import { PaymentMethod, useComandas } from '../context/ComandaContext';
+import { USERS_MOCK } from '../data/mockUsers';
 
 type RouteParams = { id: string; nickname: string };
 
@@ -68,9 +69,13 @@ export default function ComandaDetalheScreen() {
   const [closing, setClosing] = useState(false);
   const [payment, setPayment] = useState<PaymentMethod>('PIX');
 
-  // trocar atendente
+  // trocar atendente (modal por lista)
   const [attModal, setAttModal] = useState(false);
-  const [newAttendant, setNewAttendant] = useState('');
+
+  const activeUsers = useMemo(
+    () => (USERS_MOCK || []).filter((u: any) => u && u.active !== false),
+    []
+  );
 
   const openEdit = (itemId: string, name: string, qty: number) => {
     if (closed) {
@@ -100,23 +105,6 @@ export default function ComandaDetalheScreen() {
     const ok = updateItemQty(comandaId, editingItemId, parseQty());
     if (!ok) Alert.alert('Comanda fechada', 'Não dá pra editar itens depois de fechar.');
     closeEdit();
-  };
-
-  const confirmRemove = () => {
-    if (!editingItemId) return;
-
-    Alert.alert('Remover item', `Remover "${editingName}" da comanda?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Remover',
-        style: 'destructive',
-        onPress: () => {
-          const ok = removeItemFromComanda(comandaId, editingItemId);
-          if (!ok) Alert.alert('Comanda fechada', 'Não dá pra remover itens depois de fechar.');
-          closeEdit();
-        },
-      },
-    ]);
   };
 
   const onLongPressItem = (itemId: string, name: string) => {
@@ -172,17 +160,18 @@ export default function ComandaDetalheScreen() {
       Alert.alert('Comanda fechada', 'Essa comanda já foi fechada. Não dá pra trocar atendente.');
       return;
     }
-    setNewAttendant((comanda?.currentAttendant || '').trim());
+
+    if (activeUsers.length === 0) {
+      Alert.alert('Sem usuários', 'Não há usuários ativos cadastrados.');
+      return;
+    }
+
     setAttModal(true);
   };
 
-  const confirmTrocarAtendente = () => {
-    const next = (newAttendant || '').trim();
-
-    if (!next || next.length < 2) {
-      Alert.alert('Nome inválido', 'Digite o nome do atendente.');
-      return;
-    }
+  const pickAttendant = (name: string) => {
+    const next = (name || '').trim();
+    if (!next || next.length < 2) return;
 
     if ((comanda?.currentAttendant || '').trim() === next) {
       setAttModal(false);
@@ -218,7 +207,9 @@ export default function ComandaDetalheScreen() {
             Alert.alert('Ops', 'Não consegui cancelar. Tente de novo.');
             return;
           }
-          Alert.alert('Cancelada', 'Comanda vazia cancelada.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+          Alert.alert('Cancelada', 'Comanda vazia cancelada.', [
+            { text: 'OK', onPress: () => navigation.goBack() },
+          ]);
         },
       },
     ]);
@@ -239,9 +230,9 @@ export default function ComandaDetalheScreen() {
           <View style={styles.subRow}>
             <Text style={styles.subTitle}>{closed ? 'Comanda fechada' : 'Comanda aberta'}</Text>
 
-            {closed && comanda?.paymentMethod ? (
+            {closed && (comanda as any)?.paymentMethod ? (
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>{paymentLabel(comanda.paymentMethod)}</Text>
+                <Text style={styles.badgeText}>{paymentLabel((comanda as any).paymentMethod)}</Text>
               </View>
             ) : null}
           </View>
@@ -274,10 +265,10 @@ export default function ComandaDetalheScreen() {
         ) : (
           <FlatList
             data={items}
-            keyExtractor={(it) => it.id}
+            keyExtractor={(it: any) => it.id}
             ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
             contentContainerStyle={{ paddingBottom: 12 }}
-            renderItem={({ item }) => (
+            renderItem={({ item }: any) => (
               <TouchableOpacity
                 activeOpacity={0.85}
                 disabled={closed}
@@ -288,10 +279,10 @@ export default function ComandaDetalheScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.itemName}>{item.name}</Text>
                     <Text style={styles.itemSub}>
-                      {item.qty}x • R$ {item.price.toFixed(2)}
+                      {item.qty}x • R$ {Number(item.price).toFixed(2)}
                     </Text>
                   </View>
-                  <Text style={styles.itemTotal}>R$ {(item.price * item.qty).toFixed(2)}</Text>
+                  <Text style={styles.itemTotal}>R$ {(Number(item.price) * Number(item.qty)).toFixed(2)}</Text>
                 </View>
               </TouchableOpacity>
             )}
@@ -308,7 +299,7 @@ export default function ComandaDetalheScreen() {
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>R$ {total.toFixed(2)}</Text>
+          <Text style={styles.totalValue}>R$ {Number(total).toFixed(2)}</Text>
         </View>
 
         <TouchableOpacity
@@ -334,48 +325,12 @@ export default function ComandaDetalheScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* ✅ Só aparece se estiver ABERTA e VAZIA */}
         {!closed && items.length === 0 ? (
           <TouchableOpacity style={styles.dangerBtn} onPress={confirmCancelarComandaVazia}>
             <Text style={styles.dangerBtnText}>Cancelar comanda</Text>
           </TouchableOpacity>
         ) : null}
       </View>
-
-      {/* Modal editar item */}
-      <Modal transparent visible={!!editingItemId} animationType="fade" onRequestClose={closeEdit}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Editar item</Text>
-            <Text style={styles.modalSub}>{editingName}</Text>
-
-            <Text style={styles.modalLabel}>Quantidade</Text>
-            <TextInput
-              value={qtyText}
-              onChangeText={setQtyText}
-              keyboardType="number-pad"
-              style={styles.modalInput}
-              placeholder="1"
-              placeholderTextColor="#9E9E9E"
-              maxLength={6}
-            />
-
-            <View style={styles.modalButtonsRow}>
-              <TouchableOpacity style={styles.modalBtnSecondary} onPress={closeEdit}>
-                <Text style={styles.modalBtnSecondaryText}>Cancelar</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.modalBtnPrimary} onPress={saveQty}>
-                <Text style={styles.modalBtnPrimaryText}>Salvar</Text>
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity style={styles.modalRemoveBtn} onPress={confirmRemove}>
-              <Text style={styles.modalRemoveText}>Remover item</Text>
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
 
       {/* Modal fechar comanda */}
       <Modal transparent visible={closing} animationType="fade" onRequestClose={() => setClosing(false)}>
@@ -420,33 +375,88 @@ export default function ComandaDetalheScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Modal trocar atendente */}
+      {/* Modal trocar atendente (SEM PIN, SEM DIGITAR) */}
       <Modal transparent visible={attModal} animationType="fade" onRequestClose={() => setAttModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Trocar atendente</Text>
-            <Text style={styles.modalSub}>Digite o nome do novo atendente</Text>
+            <Text style={styles.modalSub}>Escolha o novo atendente</Text>
 
-            <Text style={styles.modalLabel}>Nome</Text>
-            <TextInput
-              value={newAttendant}
-              onChangeText={setNewAttendant}
-              style={styles.modalInput}
-              placeholder="Ex: Ana"
-              placeholderTextColor="#9E9E9E"
-              maxLength={40}
-              autoCapitalize="words"
-            />
+            <View style={{ gap: 10 }}>
+              {activeUsers.map((u: any) => (
+                <TouchableOpacity key={u.id} style={styles.userOption} onPress={() => pickAttendant(u.name)}>
+                  <Text style={styles.userOptionText}>{u.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-            <View style={styles.modalButtonsRow}>
+            <View style={[styles.modalButtonsRow, { marginTop: 12 }]}>
               <TouchableOpacity style={styles.modalBtnSecondary} onPress={() => setAttModal(false)}>
                 <Text style={styles.modalBtnSecondaryText}>Cancelar</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
-              <TouchableOpacity style={styles.modalBtnPrimary} onPress={confirmTrocarAtendente}>
-                <Text style={styles.modalBtnPrimaryText}>Confirmar</Text>
+      {/* Modal editar item (mantido simples, usando o fluxo já existente no seu projeto) */}
+      <Modal transparent visible={!!editingItemId} animationType="fade" onRequestClose={closeEdit}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Editar item</Text>
+            <Text style={styles.modalSub}>{editingName}</Text>
+
+            <Text style={styles.modalLabel}>Quantidade</Text>
+            <View style={styles.qtyRow}>
+              <TouchableOpacity
+                style={styles.qtyBtn}
+                onPress={() => setQtyText((v) => String(Math.max(1, parseQty() - 1)))}
+              >
+                <Text style={styles.qtyBtnText}>-</Text>
+              </TouchableOpacity>
+
+              <View style={styles.qtyMid}>
+                <Text style={styles.qtyMidText}>{parseQty()}</Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.qtyBtn}
+                onPress={() => setQtyText((v) => String(Math.max(1, parseQty() + 1)))}
+              >
+                <Text style={styles.qtyBtnText}>+</Text>
               </TouchableOpacity>
             </View>
+
+            <View style={[styles.modalButtonsRow, { marginTop: 12 }]}>
+              <TouchableOpacity style={styles.modalBtnSecondary} onPress={closeEdit}>
+                <Text style={styles.modalBtnSecondaryText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.modalBtnPrimary} onPress={saveQty}>
+                <Text style={styles.modalBtnPrimaryText}>Salvar</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.modalRemoveBtn, { marginTop: 12 }]}
+              onPress={() => {
+                if (!editingItemId) return;
+                Alert.alert('Remover item', `Remover "${editingName}" da comanda?`, [
+                  { text: 'Cancelar', style: 'cancel' },
+                  {
+                    text: 'Remover',
+                    style: 'destructive',
+                    onPress: () => {
+                      const ok = removeItemFromComanda(comandaId, editingItemId);
+                      if (!ok) Alert.alert('Comanda fechada', 'Não dá pra remover itens depois de fechar.');
+                      closeEdit();
+                    },
+                  },
+                ]);
+              }}
+            >
+              <Text style={styles.modalRemoveText}>Remover item</Text>
+            </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -589,17 +599,6 @@ const styles = StyleSheet.create({
   modalSub: { marginTop: 2, marginBottom: 12, fontSize: 13, color: MUTED },
 
   modalLabel: { fontSize: 14, fontWeight: '700', color: TEXT, marginBottom: 8 },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: BORDER,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    backgroundColor: WHITE,
-    color: TEXT,
-    marginBottom: 12,
-  },
 
   modalButtonsRow: { flexDirection: 'row', gap: 10 },
 
@@ -624,7 +623,6 @@ const styles = StyleSheet.create({
   modalBtnSecondaryText: { color: SECONDARY_BLUE, fontSize: 14, fontWeight: '900' },
 
   modalRemoveBtn: {
-    marginTop: 12,
     paddingVertical: 10,
     alignItems: 'center',
     borderRadius: 10,
@@ -645,4 +643,27 @@ const styles = StyleSheet.create({
   },
   payOptionSelected: { borderColor: PRIMARY_GREEN, backgroundColor: '#E8F5E9' },
   payOptionText: { fontSize: 14, fontWeight: '900', color: TEXT },
+
+  userOption: {
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    backgroundColor: WHITE,
+    alignItems: 'center',
+  },
+  userOptionText: { fontSize: 14, fontWeight: '900', color: TEXT },
+
+  qtyRow: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  qtyBtn: { paddingHorizontal: 18, paddingVertical: 12, backgroundColor: '#FAFAFA' },
+  qtyBtnText: { fontSize: 16, fontWeight: '900', color: TEXT },
+  qtyMid: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: WHITE },
+  qtyMidText: { fontSize: 14, fontWeight: '900', color: TEXT },
 });
