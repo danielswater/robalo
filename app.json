@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "comanda-barraca",
+    "name": "Barraca do Robalo",
     "slug": "comanda-barraca",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -21,11 +21,17 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.danielswater.comandabarraca"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": []
+    "plugins": [],
+    "extra": {
+      "eas": {
+        "projectId": "fca155cd-97ce-4788-8628-4ea730560217"
+      }
+    }
   }
 }
