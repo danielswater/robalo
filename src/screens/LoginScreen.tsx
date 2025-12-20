@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
 import { USERS_MOCK } from "../data/mockUsers";
+import { claimAttendantSession, validateAttendantSession } from "../services/attendantSessions";
 
 const PRIMARY_GREEN = "#2E7D32";
 const BG = "#FAFAFA";
@@ -26,6 +27,7 @@ const ERROR_RED = "#D32F2F";
 
 const STORAGE_KEYS = {
   attendantName: "attendantName",
+  attendantId: "attendantId",
 };
 
 export default function LoginScreen() {
@@ -58,10 +60,25 @@ export default function LoginScreen() {
     async function boot() {
       try {
         const savedName = await AsyncStorage.getItem(STORAGE_KEYS.attendantName);
+        const savedId = await AsyncStorage.getItem(STORAGE_KEYS.attendantId);
 
-        if (savedName && savedName.trim().length >= 2) {
-          navigation.reset({ index: 0, routes: [{ name: "MainTabs" }] });
-          return;
+        if (savedName && savedName.trim().length >= 2 && savedId) {
+          const result = await validateAttendantSession(savedId);
+
+          if (result.ok) {
+            navigation.reset({ index: 0, routes: [{ name: "MainTabs" }] });
+            return;
+          }
+
+          await AsyncStorage.multiRemove([STORAGE_KEYS.attendantName, STORAGE_KEYS.attendantId]);
+
+          if (result.reason === "offline") {
+            setError("Sem conexao. Conecte na internet para entrar.");
+          } else if (result.reason === "in-use") {
+            setError("Esse atendente ja esta logado em outro celular.");
+          }
+        } else if (savedName || savedId) {
+          await AsyncStorage.multiRemove([STORAGE_KEYS.attendantName, STORAGE_KEYS.attendantId]);
         }
       } catch {
         // Keep login screen.
@@ -105,7 +122,24 @@ export default function LoginScreen() {
     }
 
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.attendantName, selectedUser.name);
+      const lock = await claimAttendantSession(selectedUser.id, selectedUser.name);
+      if (!lock.ok) {
+        if (lock.reason === "in-use") {
+          setError("Esse atendente ja esta logado em outro celular.");
+          return;
+        }
+        if (lock.reason === "offline") {
+          setError("Sem conexao. Conecte na internet para entrar.");
+          return;
+        }
+        setError("Nao consegui validar o login. Tente de novo.");
+        return;
+      }
+
+      await AsyncStorage.multiSet([
+        [STORAGE_KEYS.attendantName, selectedUser.name],
+        [STORAGE_KEYS.attendantId, selectedUser.id],
+      ]);
 
       navigation.reset({
         index: 0,
@@ -216,10 +250,13 @@ const styles = StyleSheet.create({
     backgroundColor: BG,
   },
   scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
     paddingVertical: 24,
     paddingHorizontal: 22,
   },
   inner: {
+    width: "100%",
     marginBottom: 16,
   },
 

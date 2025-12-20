@@ -19,6 +19,7 @@ import AppHeaderTitle from './src/components/AppHeaderTitle';
 import { ComandaProvider } from './src/context/ComandaContext';
 import AppSplash from './src/components/AppSplash';
 import { ensureAnonAuth } from './src/firebase';
+import { releaseAttendantSession } from './src/services/attendantSessions';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -27,6 +28,7 @@ const PRIMARY_GREEN = '#2E7D32';
 
 const STORAGE_KEYS = {
   attendantName: 'attendantName',
+  attendantId: 'attendantId',
 };
 
 function MainTabs() {
@@ -61,7 +63,25 @@ function MainTabs() {
                     style: 'destructive',
                     onPress: async () => {
                       try {
-                        await AsyncStorage.removeItem(STORAGE_KEYS.attendantName);
+                        const savedId = await AsyncStorage.getItem(STORAGE_KEYS.attendantId);
+                        if (savedId) {
+                          const release = await releaseAttendantSession(savedId);
+                          if (!release.ok) {
+                            if (release.reason === 'offline') {
+                              Alert.alert('Sem conexao', 'Conecte na internet para sair.');
+                              return;
+                            }
+                            if (release.reason === 'error') {
+                              Alert.alert('Erro', 'Nao consegui liberar o login. Tente de novo.');
+                              return;
+                            }
+                          }
+                        }
+
+                        await AsyncStorage.multiRemove([
+                          STORAGE_KEYS.attendantName,
+                          STORAGE_KEYS.attendantId,
+                        ]);
 
                         const parent = navigation.getParent();
                         parent?.reset({
