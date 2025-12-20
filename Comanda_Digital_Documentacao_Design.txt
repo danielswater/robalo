@@ -1,0 +1,156 @@
+DOCUMENTAÇÃO OFICIAL DE DESIGN
+App Comanda Digital — Versão Final
+
+Designer responsável: ChatGPT
+
+1. Conceito do design
+- Ferramenta de trabalho, usada com pressa, em pé e com uma mão.
+- Design prioriza velocidade, não beleza.
+Regra: Se algo não ajuda a vender mais rápido, não entra no app.
+
+2. Estilo visual
+- Minimalista, profissional, limpo, sem enfeite, sem distração.
+Proibido: gradiente, sombra forte, animações chamativas, ícones decorativos, texto pequeno.
+
+3. Paleta de cores
+Cor primária (ação principal): Verde escuro #2E7D32
+Uso: botões principais, confirmar, fechar comanda, confirmar pagamento.
+
+Cor secundária (ações comuns): Azul médio #1976D2
+Uso: Nova comanda, Produtos, Relatórios, links clicáveis.
+
+Cores de sistema:
+- Fundo geral: #F5F5F5
+- Cards: #FFFFFF
+- Texto principal: #212121
+- Texto secundário: #757575
+- Erro: #D32F2F
+- Aviso: #F57C00
+- Borda: #E0E0E0
+
+Nenhuma outra cor pode ser usada.
+
+4. Tipografia
+Fonte: padrão do sistema (Android: Roboto, iOS: San Francisco).
+Pesos: normal e negrito. Não usar itálico ou fontes customizadas.
+
+Tamanhos fixos:
+- Título da tela: 22
+- Subtítulo: 18
+- Texto normal: 16
+- Texto secundário: 14
+- Botões: 16
+- Valores (R$): 20, negrito.
+
+5. Ícones
+Estilo simples, tipo Material Icons.
+Ícones obrigatórios com texto sempre junto:
+- Nova comanda: + 
+- Produtos: [icone hamburguer]
+- Relatórios: [icone grafico]
+- Adicionar item: [icone nota fiscal]
+- Fechar comanda: [icone check]
+- Trocar atendente: [icone usuário]
+- Pix: [icone raio]
+- Cartão: [icone cartão]
+- Dinheiro: [icone dinheiro]
+
+6. Header (topo)
+- Altura padrão do sistema.
+- Fundo branco, linha inferior #E0E0E0.
+- Esquerda: título da tela.
+- Direita: ação principal (quando existir).
+Exemplo: "Comandas              + Nova comanda".
+Nunca mais de uma ação no header.
+
+7. Botões
+Botão principal:
+- Fundo verde #2E7D32, texto branco, largura 100%, altura grande, cantos arredondados.
+Usos: criar comanda, salvar item, fechar comanda, confirmar pagamento.
+
+Botão secundário:
+- Fundo branco, borda azul #1976D2, texto azul.
+Usos: cancelar, voltar, ações menos importantes.
+
+Nunca usar dois botões principais na mesma tela.
+
+8. Cards
+Usados para comandas, produtos e resumos.
+- Fundo branco, cantos arredondados, sombra leve, espaçamento interno grande.
+
+Card de comanda (layout):
+- Linha 1: apelido (ex: "Boné azul").
+- Linha 2: valor total em R$ (negrito).
+- Linha 3: "Atendente: Nome".
+- Linha 4: "Aberta há X min".
+
+9. Layout das telas
+
+Login:
+- Fundo claro.
+- Nome da barraca no topo.
+- Campo Nome.
+- Campo PIN.
+- Botão Entrar.
+
+Home (Comandas):
+- Header: "Comandas".
+- Botão "+ Nova comanda".
+- Lista de comandas abertas.
+- Barra inferior com Produtos e Relatórios.
+- Estado vazio: texto "Sem comandas abertas".
+
+Nova Comanda:
+- Campo Apelido.
+- Campo Atendente (preenchido com nome do login).
+- Botão "Criar comanda".
+
+Comanda (Detalhe):
+- Header com apelido.
+- Linha com "Atendente atual: Nome" e botão "Trocar".
+- Lista de itens (nome, quantidade, preço, subtotal).
+- Total fixo na parte inferior.
+- Botão "Fechar comanda" fixo no rodapé.
+
+Adicionar Item:
+- Lista de produtos.
+- Toque no produto abre modal para quantidade.
+- Botão "Salvar".
+
+Trocar Atendente:
+- Modal central com campo de nome e botão "Confirmar".
+
+Fechar Comanda:
+- Total em destaque no topo.
+- Três botões grandes para forma de pagamento: Pix, Cartão, Dinheiro.
+- Botão "Confirmar fechamento".
+
+Produtos:
+- Lista de produtos.
+- Produtos inativos em cinza.
+- Botão "Novo produto".
+
+Relatórios:
+- Abas "Hoje" e "Período".
+- Cards com totais.
+- Lista de comandas fechadas.
+- Sem gráficos complexos no MVP.
+
+10. Estados visuais
+
+Carregando:
+- Indicador de carregamento e texto "Carregando…".
+
+Erro:
+- Texto em vermelho curto e objetivo.
+- Botão "Tentar novamente".
+
+Vazio:
+- Mensagem curta com ação clara, exemplo:
+"Sem comandas abertas.
+Toque em 'Nova comanda' para começar."
+
+11. Regra final
+- Nada é opcional.
+- Nada é customizável fora deste documento.
+- Telas novas devem seguir exatamente este padrão.
