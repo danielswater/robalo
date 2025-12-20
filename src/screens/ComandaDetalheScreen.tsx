@@ -10,6 +10,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -79,6 +80,7 @@ export default function ComandaDetalheScreen() {
 
   // trocar atendente (modal por lista)
   const [attModal, setAttModal] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const activeUsers = useMemo(
     () => (USERS_MOCK || []).filter((u: any) => u && u.active !== false),
@@ -110,7 +112,13 @@ export default function ComandaDetalheScreen() {
 
   const saveQty = async () => {
     if (!editingItemId) return;
-    const ok = await updateItemQty(comandaId, editingItemId, parseQty());
+    let ok = false;
+    setBusy(true);
+    try {
+      ok = await updateItemQty(comandaId, editingItemId, parseQty());
+    } finally {
+      setBusy(false);
+    }
     if (!ok) {
       if (closed) Alert.alert("Comanda fechada", "Nao da pra editar itens depois de fechar.");
       else Alert.alert("Atualizando...", "Tente de novo.");
@@ -127,7 +135,13 @@ export default function ComandaDetalheScreen() {
         text: "Remover",
         style: "destructive",
         onPress: async () => {
-          const ok = await removeItemFromComanda(comandaId, itemId);
+          let ok = false;
+          setBusy(true);
+          try {
+            ok = await removeItemFromComanda(comandaId, itemId);
+          } finally {
+            setBusy(false);
+          }
           if (!ok) {
             if (closed) Alert.alert("Comanda fechada", "Nao da pra remover itens depois de fechar.");
             else Alert.alert("Atualizando...", "Tente de novo.");
@@ -153,7 +167,13 @@ export default function ComandaDetalheScreen() {
       {
         text: "Confirmar",
         onPress: async () => {
-          const ok = await closeComanda(comandaId, payment);
+          let ok = false;
+          setBusy(true);
+          try {
+            ok = await closeComanda(comandaId, payment);
+          } finally {
+            setBusy(false);
+          }
           setClosing(false);
 
           if (!ok) {
@@ -192,7 +212,13 @@ export default function ComandaDetalheScreen() {
       return;
     }
 
-    const ok = await changeAttendant(comandaId, next);
+    let ok = false;
+    setBusy(true);
+    try {
+      ok = await changeAttendant(comandaId, next);
+    } finally {
+      setBusy(false);
+    }
 
     if (!ok) {
       Alert.alert("Erro", "Nao consegui trocar o atendente.");
@@ -216,7 +242,13 @@ export default function ComandaDetalheScreen() {
         text: "Sim, cancelar",
         style: "destructive",
         onPress: async () => {
-          const ok = await cancelEmptyComanda(comandaId);
+          let ok = false;
+          setBusy(true);
+          try {
+            ok = await cancelEmptyComanda(comandaId);
+          } finally {
+            setBusy(false);
+          }
           if (!ok) {
             Alert.alert("Ops", "Nao consegui cancelar. Tente de novo.");
             return;
@@ -407,8 +439,8 @@ export default function ComandaDetalheScreen() {
             </View>
 
             <View style={[styles.modalButtonsRow, { marginTop: 12 }]}>
-              <TouchableOpacity style={styles.modalBtnSecondary} onPress={() => setAttModal(false)}>
-                <Text style={styles.modalBtnSecondaryText}>Cancelar</Text>
+              <TouchableOpacity style={styles.modalBtnDanger} onPress={() => setAttModal(false)}>
+                <Text style={styles.modalBtnDangerText}>Cancelar</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -463,7 +495,13 @@ export default function ComandaDetalheScreen() {
                     text: "Remover",
                     style: "destructive",
                     onPress: async () => {
-                      const ok = await removeItemFromComanda(comandaId, editingItemId);
+                      let ok = false;
+                      setBusy(true);
+                      try {
+                        ok = await removeItemFromComanda(comandaId, editingItemId);
+                      } finally {
+                        setBusy(false);
+                      }
                       if (!ok) {
                         if (closed) Alert.alert("Comanda fechada", "Nao da pra remover itens depois de fechar.");
                         else Alert.alert("Atualizando...", "Tente de novo.");
@@ -478,6 +516,13 @@ export default function ComandaDetalheScreen() {
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal transparent visible={busy} animationType="fade" onRequestClose={() => {}}>
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={WHITE} />
+          <Text style={styles.loadingText}>Carregando...</Text>
+        </View>
       </Modal>
     </View>
   );
@@ -641,6 +686,14 @@ const styles = StyleSheet.create({
     borderColor: SECONDARY_BLUE,
   },
   modalBtnSecondaryText: { color: SECONDARY_BLUE, fontSize: 14, fontWeight: "900" },
+  modalBtnDanger: {
+    flex: 1,
+    backgroundColor: ERROR_RED,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  modalBtnDangerText: { color: WHITE, fontSize: 14, fontWeight: "900" },
 
   modalRemoveBtn: {
     paddingVertical: 10,
@@ -686,4 +739,12 @@ const styles = StyleSheet.create({
   qtyBtnText: { fontSize: 16, fontWeight: "900", color: TEXT },
   qtyMid: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: WHITE },
   qtyMidText: { fontSize: 14, fontWeight: "900", color: TEXT },
+
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingText: { marginTop: 10, color: WHITE, fontSize: 14, fontWeight: "800" },
 });

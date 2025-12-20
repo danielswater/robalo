@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Alert, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -90,7 +90,7 @@ function paymentLabel(p: PaymentMethod) {
 export default function RelatoriosScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const { comandas } = useComandas();
+  const { comandas, ordersLoading } = useComandas();
 
   const [mode, setMode] = useState<Mode>("today");
   const [startInput, setStartInput] = useState("");
@@ -309,7 +309,14 @@ export default function RelatoriosScreen() {
       }
       ListEmptyComponent={
         <View style={styles.emptyCard}>
-          <Text style={styles.emptyText}>{emptyMessage}</Text>
+          {ordersLoading ? (
+            <>
+              <ActivityIndicator size="small" color={MUTED} />
+              <Text style={[styles.emptyText, { marginTop: 8 }]}>Carregando...</Text>
+            </>
+          ) : (
+            <Text style={styles.emptyText}>{emptyMessage}</Text>
+          )}
         </View>
       }
       renderItem={({ item }) => {

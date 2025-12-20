@@ -12,6 +12,7 @@ import {
   Platform,
   Switch,
   Pressable,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -56,6 +57,8 @@ export default function ProdutosScreen() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
+  const [saving, setSaving] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const loadProducts = useCallback(async (aliveRef?: { current: boolean }) => {
     try {
@@ -95,11 +98,15 @@ export default function ProdutosScreen() {
   }, [produtos, search, filter]);
 
   const toggleActive = async (id: string, active: boolean) => {
+    if (togglingId) return;
+    setTogglingId(id);
     try {
       await productsRepo.update(id, { active: !active });
       await loadProducts();
     } catch {
       Alert.alert("Erro", "Nao foi possivel atualizar o produto.");
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -132,6 +139,7 @@ export default function ProdutosScreen() {
   const closeModal = () => setModalOpen(false);
 
   const saveModal = async () => {
+    if (saving) return;
     const name = newName.trim();
     if (name.length < 2) {
       Alert.alert("Nome invalido", "Digite o nome do produto.");
@@ -145,6 +153,7 @@ export default function ProdutosScreen() {
     }
 
     try {
+      setSaving(true);
       if (editingId) {
         await productsRepo.update(editingId, {
           name,
@@ -168,6 +177,8 @@ export default function ProdutosScreen() {
     } catch (error: any) {
       const msg = String(error?.message || error || "Nao foi possivel salvar o produto.");
       Alert.alert("Erro", msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -211,7 +222,8 @@ export default function ProdutosScreen() {
 
       {loading ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyText}>Carregando...</Text>
+          <ActivityIndicator size="small" color={MUTED} />
+          <Text style={[styles.emptyText, { marginTop: 8 }]}>Carregando...</Text>
         </View>
       ) : error ? (
         <View style={styles.empty}>
@@ -255,9 +267,18 @@ export default function ProdutosScreen() {
                     e?.stopPropagation?.();
                     toggleActive(item.id, item.active);
                   }}
-                  style={[styles.smallBtn, item.active ? styles.smallBtnOff : styles.smallBtnOn]}
+                  style={[
+                    styles.smallBtn,
+                    item.active ? styles.smallBtnOff : styles.smallBtnOn,
+                    togglingId === item.id && styles.smallBtnDisabled,
+                  ]}
+                  disabled={togglingId === item.id}
                 >
-                  <Text style={styles.smallBtnText}>{item.active ? "Inativar" : "Ativar"}</Text>
+                  {togglingId === item.id ? (
+                    <ActivityIndicator size="small" color={TEXT} />
+                  ) : (
+                    <Text style={styles.smallBtnText}>{item.active ? "Inativar" : "Ativar"}</Text>
+                  )}
                 </Pressable>
               </View>
             </Pressable>
@@ -311,8 +332,16 @@ export default function ProdutosScreen() {
                 <Text style={styles.modalBtnSecondaryText}>Cancelar</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.modalBtnPrimary} onPress={saveModal}>
-                <Text style={styles.modalBtnPrimaryText}>Salvar</Text>
+              <TouchableOpacity
+                style={[styles.modalBtnPrimary, saving && styles.modalBtnPrimaryDisabled]}
+                onPress={saveModal}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color={WHITE} />
+                ) : (
+                  <Text style={styles.modalBtnPrimaryText}>Salvar</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -413,6 +442,7 @@ const styles = StyleSheet.create({
   },
   smallBtnOn: { borderColor: PRIMARY_GREEN, backgroundColor: WHITE },
   smallBtnOff: { borderColor: ERROR_RED, backgroundColor: WHITE },
+  smallBtnDisabled: { opacity: 0.7 },
 
   smallBtnText: { fontSize: 12, fontWeight: "900", color: TEXT },
 
@@ -480,6 +510,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
+  modalBtnPrimaryDisabled: { opacity: 0.7 },
   modalBtnPrimaryText: { color: WHITE, fontSize: 16, fontWeight: "900" },
   modalBtnSecondary: {
     flex: 1,

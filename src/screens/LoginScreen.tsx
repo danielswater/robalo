@@ -38,6 +38,7 @@ export default function LoginScreen() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [loggingIn, setLoggingIn] = useState(false);
 
   const activeUsers = useMemo(() => USERS_MOCK.filter((u) => u.active), []);
 
@@ -121,7 +122,10 @@ export default function LoginScreen() {
       return;
     }
 
+    if (loggingIn) return;
+
     try {
+      setLoggingIn(true);
       const lock = await claimAttendantSession(selectedUser.id, selectedUser.name);
       if (!lock.ok) {
         if (lock.reason === "in-use") {
@@ -147,6 +151,8 @@ export default function LoginScreen() {
       });
     } catch {
       setError("Nao consegui salvar o login. Tente de novo.");
+    } finally {
+      setLoggingIn(false);
     }
   }
 
@@ -218,11 +224,18 @@ export default function LoginScreen() {
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
             <TouchableOpacity
-              style={[styles.primaryButton, (!selectedUser || pin.length < 4) && styles.primaryButtonDisabled]}
+              style={[
+                styles.primaryButton,
+                (!selectedUser || pin.length < 4 || loggingIn) && styles.primaryButtonDisabled,
+              ]}
               onPress={handleLogin}
-              disabled={!selectedUser || pin.length < 4}
+              disabled={!selectedUser || pin.length < 4 || loggingIn}
             >
-              <Text style={styles.primaryButtonText}>Entrar</Text>
+              {loggingIn ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Entrar</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>

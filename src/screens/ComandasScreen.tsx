@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -41,10 +42,14 @@ function formatOpenedAgo(value?: string | null) {
   return `Aberta ha ${hours}h`;
 }
 
+function normalizeName(value: string) {
+  return value.trim().toLowerCase();
+}
+
 export default function ComandasScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const { comandas, createComanda, ordersError, reloadOrders } = useComandas();
+  const { comandas, createComanda, ordersError, ordersLoading, reloadOrders } = useComandas();
 
   const [attendantName, setAttendantName] = useState("Atendente");
 
@@ -70,6 +75,7 @@ export default function ComandasScreen() {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [nickname, setNickname] = useState("");
+  const [creating, setCreating] = useState(false);
 
   const openComandas = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -83,12 +89,26 @@ export default function ComandasScreen() {
   };
 
   const onCreate = async () => {
+    const raw = nickname.trim();
+    const nextName = raw || "Sem apelido";
+    const hasDuplicate = (comandas || []).some(
+      (c) => c.status === "open" && normalizeName(c.nickname || "") === normalizeName(nextName)
+    );
+    if (hasDuplicate) {
+      Alert.alert("Nome ja existe", "Ja existe uma comanda aberta com esse nome. Use outro apelido.");
+      return;
+    }
+
+    if (creating) return;
+    setCreating(true);
     try {
-      await createComanda(nickname.trim(), attendantName);
+      await createComanda(raw, attendantName);
       setCreateOpen(false);
       setNickname("");
     } catch {
       Alert.alert("Erro", "Nao foi possivel criar a comanda.");
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -113,15 +133,30 @@ export default function ComandasScreen() {
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{ordersError}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={reloadOrders}>
-            <Text style={styles.retryText}>Recarregar</Text>
+            {ordersLoading ? (
+              <ActivityIndicator size="small" color={SECONDARY_BLUE} />
+            ) : (
+              <Text style={styles.retryText}>Recarregar</Text>
+            )}
           </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {!ordersError && ordersLoading ? (
+        <View style={styles.loadingRow}>
+          <ActivityIndicator size="small" color={MUTED} />
+          <Text style={styles.loadingText}>Carregando...</Text>
         </View>
       ) : null}
 
       {openComandas.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyTitle}>Sem comandas abertas</Text>
-          <Text style={styles.emptyText}>Toque em "Nova comanda" para comecar.</Text>
+          <Text style={styles.emptyTitle}>
+            {ordersLoading ? "Carregando comandas..." : "Sem comandas abertas"}
+          </Text>
+          <Text style={styles.emptyText}>
+            {ordersLoading ? "Aguarde um instante." : 'Toque em "Nova comanda" para comecar.'}
+          </Text>
         </View>
       ) : (
         <FlatList
@@ -168,8 +203,16 @@ export default function ComandasScreen() {
                 <Text style={styles.modalBtnSecondaryText}>Cancelar</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.modalBtnPrimary} onPress={onCreate}>
-                <Text style={styles.modalBtnPrimaryText}>Criar</Text>
+              <TouchableOpacity
+                style={[styles.modalBtnPrimary, creating && styles.modalBtnPrimaryDisabled]}
+                onPress={onCreate}
+                disabled={creating}
+              >
+                {creating ? (
+                  <ActivityIndicator size="small" color={WHITE} />
+                ) : (
+                  <Text style={styles.modalBtnPrimaryText}>Criar</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -225,6 +268,15 @@ const styles = StyleSheet.create({
   },
   retryText: { color: SECONDARY_BLUE, fontSize: 14, fontWeight: "700" },
 
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 10,
+  },
+  loadingText: { fontSize: 12, fontWeight: "700", color: MUTED },
+
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20 },
   emptyTitle: { fontSize: 16, fontWeight: "bold", color: TEXT, marginBottom: 6 },
   emptyText: { fontSize: 14, color: MUTED, textAlign: "center" },
@@ -279,6 +331,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
+  modalBtnPrimaryDisabled: { opacity: 0.7 },
   modalBtnPrimaryText: { color: WHITE, fontSize: 16, fontWeight: "bold" },
   modalBtnSecondary: {
     flex: 1,

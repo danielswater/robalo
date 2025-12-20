@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, Alert } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, Alert, ActivityIndicator } from "react-native";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -53,6 +53,7 @@ export default function ComandaAdicionarItemScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [adding, setAdding] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -126,32 +127,36 @@ export default function ComandaAdicionarItemScreen() {
   }, [qtyByProduct]);
 
   const addAllToComanda = async () => {
-    if (totals.items <= 0) return;
+    if (totals.items <= 0 || adding) return;
+    setAdding(true);
 
     let failed = false;
+    try {
+      for (const [productId, qty] of Object.entries(qtyByProduct)) {
+        if (qty <= 0) continue;
 
-    for (const [productId, qty] of Object.entries(qtyByProduct)) {
-      if (qty <= 0) continue;
+        const p = activeProducts.find((x) => x.id === productId);
+        if (!p) continue;
 
-      const p = activeProducts.find((x) => x.id === productId);
-      if (!p) continue;
+        const ok = await addItemToComanda(comandaId, {
+          productId: p.id,
+          name: p.name,
+          price: p.price,
+          qty,
+        });
 
-      const ok = await addItemToComanda(comandaId, {
-        productId: p.id,
-        name: p.name,
-        price: p.price,
-        qty,
-      });
+        if (!ok) failed = true;
+      }
 
-      if (!ok) failed = true;
+      setQtyByProduct({});
+      if (failed) {
+        Alert.alert("Atualizando...", "Tente de novo.");
+      } else {
+        navigation.popToTop();
+      }
+    } finally {
+      setAdding(false);
     }
-
-    setQtyByProduct({});
-    if (failed) {
-      Alert.alert("Atualizando...", "Tente de novo.");
-      return;
-    }
-    navigation.goBack();
   };
 
   const itemsLabel = formatQtyDisplay(totals.items);
@@ -185,7 +190,8 @@ export default function ComandaAdicionarItemScreen() {
 
         {loading ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>Carregando...</Text>
+            <ActivityIndicator size="small" color={MUTED} />
+            <Text style={[styles.emptyText, { marginTop: 8 }]}>Carregando...</Text>
           </View>
         ) : error ? (
           <View style={styles.empty}>
@@ -248,13 +254,17 @@ export default function ComandaAdicionarItemScreen() {
         )}
 
         <TouchableOpacity
-          style={[styles.primaryBtn, totals.items <= 0 && styles.primaryBtnDisabled]}
-          disabled={totals.items <= 0}
+          style={[styles.primaryBtn, (totals.items <= 0 || adding) && styles.primaryBtnDisabled]}
+          disabled={totals.items <= 0 || adding}
           onPress={addAllToComanda}
         >
-          <Text style={[styles.primaryBtnText, totals.items <= 0 && styles.primaryBtnTextDisabled]}>
-            {buttonLabel}
-          </Text>
+          {adding ? (
+            <ActivityIndicator size="small" color={WHITE} />
+          ) : (
+            <Text style={[styles.primaryBtnText, totals.items <= 0 && styles.primaryBtnTextDisabled]}>
+              {buttonLabel}
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>

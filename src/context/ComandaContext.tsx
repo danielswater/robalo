@@ -53,6 +53,7 @@ export type Comanda = {
 
 type ComandaContextValue = {
   comandas: Comanda[];
+  ordersLoading: boolean;
   ordersError: string | null;
   reloadOrders: () => void;
 
@@ -167,12 +168,14 @@ function formatClosedDate(d: Date) {
 export function ComandaProvider({ children }: { children: React.ReactNode }) {
   const [comandas, setComandas] = useState<Comanda[]>([]);
   const [itemsByComandaId, setItemsByComandaId] = useState<Record<string, ComandaItem[]>>({});
+  const [ordersLoading, setOrdersLoading] = useState(true);
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [ordersReloadKey, setOrdersReloadKey] = useState(0);
 
   useEffect(() => {
     let alive = true;
     let unsub: (() => void) | null = null;
+    setOrdersLoading(true);
 
     ensureAnonAuth()
       .then(() => {
@@ -184,12 +187,16 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
           (snap) => {
             const next = snap.docs.map((d) => normalizeOrder(d.id, d.data()));
             next.sort((a, b) => (b.openedAt || "").localeCompare(a.openedAt || ""));
-            if (alive) setComandas(next);
+            if (alive) {
+              setComandas(next);
+              setOrdersLoading(false);
+            }
           },
           () => {
             if (alive) {
               setComandas([]);
               setOrdersError("Nao foi possivel carregar as comandas.");
+              setOrdersLoading(false);
             }
           }
         );
@@ -198,6 +205,7 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
         if (alive) {
           setComandas([]);
           setOrdersError("Sem conexao. Tente novamente.");
+          setOrdersLoading(false);
         }
       });
 
@@ -208,6 +216,7 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
   }, [ordersReloadKey]);
 
   const reloadOrders = useCallback(() => {
+    setOrdersLoading(true);
     setOrdersReloadKey((prev) => prev + 1);
   }, []);
 
@@ -514,6 +523,7 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(
     () => ({
       comandas,
+      ordersLoading,
       ordersError,
       reloadOrders,
       getComandaById,
@@ -529,7 +539,7 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
       closeComanda,
       subscribeToComandaItems,
     }),
-    [comandas, itemsByComandaId, ordersError, reloadOrders]
+    [comandas, ordersLoading, itemsByComandaId, ordersError, reloadOrders]
   );
 
   return <ComandaContext.Provider value={value}>{children}</ComandaContext.Provider>;

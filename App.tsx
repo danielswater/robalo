@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { NavigationContainer } from '@react-navigation/native';
@@ -32,6 +32,8 @@ const STORAGE_KEYS = {
 };
 
 function MainTabs() {
+  const [loggingOut, setLoggingOut] = useState(false);
+
   return (
     <Tab.Navigator
       screenOptions={({ route, navigation }) => ({
@@ -52,52 +54,48 @@ function MainTabs() {
         headerRight: () => (
           <TouchableOpacity
             style={{ paddingHorizontal: 14, paddingVertical: 8 }}
-            onPress={() => {
-              Alert.alert(
-                'Trocar atendente',
-                'Isso vai apagar o nome salvo e voltar pro Login.',
-                [
-                  { text: 'Cancelar', style: 'cancel' },
-                  {
-                    text: 'Trocar',
-                    style: 'destructive',
-                    onPress: async () => {
-                      try {
-                        const savedId = await AsyncStorage.getItem(STORAGE_KEYS.attendantId);
-                        if (savedId) {
-                          const release = await releaseAttendantSession(savedId);
-                          if (!release.ok) {
-                            if (release.reason === 'offline') {
-                              Alert.alert('Sem conexao', 'Conecte na internet para sair.');
-                              return;
-                            }
-                            if (release.reason === 'error') {
-                              Alert.alert('Erro', 'Nao consegui liberar o login. Tente de novo.');
-                              return;
-                            }
-                          }
-                        }
+            onPress={async () => {
+              if (loggingOut) return;
+              try {
+                setLoggingOut(true);
+                const savedId = await AsyncStorage.getItem(STORAGE_KEYS.attendantId);
+                if (savedId) {
+                  const release = await releaseAttendantSession(savedId);
+                  if (!release.ok) {
+                    if (release.reason === 'offline') {
+                      Alert.alert('Sem conexao', 'Conecte na internet para sair.');
+                      setLoggingOut(false);
+                      return;
+                    }
+                    if (release.reason === 'error') {
+                      Alert.alert('Erro', 'Nao consegui liberar o login. Tente de novo.');
+                      setLoggingOut(false);
+                      return;
+                    }
+                  }
+                }
 
-                        await AsyncStorage.multiRemove([
-                          STORAGE_KEYS.attendantName,
-                          STORAGE_KEYS.attendantId,
-                        ]);
+                await AsyncStorage.multiRemove([
+                  STORAGE_KEYS.attendantName,
+                  STORAGE_KEYS.attendantId,
+                ]);
 
-                        const parent = navigation.getParent();
-                        parent?.reset({
-                          index: 0,
-                          routes: [{ name: 'Login' }],
-                        });
-                      } catch (e) {
-                        Alert.alert('Erro', 'Não consegui trocar o atendente.');
-                      }
-                    },
-                  },
-                ]
-              );
+                const parent = navigation.getParent();
+                parent?.reset({
+                  index: 0,
+                  routes: [{ name: 'Login' }],
+                });
+              } catch (e) {
+                Alert.alert('Erro', 'Nao consegui trocar o atendente.');
+                setLoggingOut(false);
+              }
             }}
           >
-            <Ionicons name="log-out-outline" size={22} color="#424242" />
+            {loggingOut ? (
+              <ActivityIndicator size="small" color="#424242" />
+            ) : (
+              <Ionicons name="log-out-outline" size={22} color="#424242" />
+            )}
           </TouchableOpacity>
         ),
 
