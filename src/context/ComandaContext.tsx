@@ -1,5 +1,5 @@
 // src/context/ComandaContext.tsx
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   addDoc,
   collection,
@@ -53,6 +53,8 @@ export type Comanda = {
 
 type ComandaContextValue = {
   comandas: Comanda[];
+  ordersError: string | null;
+  reloadOrders: () => void;
 
   getComandaById: (id: string) => Comanda | undefined;
   getComandaTotal: (id: string) => number;
@@ -165,31 +167,48 @@ function formatClosedDate(d: Date) {
 export function ComandaProvider({ children }: { children: React.ReactNode }) {
   const [comandas, setComandas] = useState<Comanda[]>([]);
   const [itemsByComandaId, setItemsByComandaId] = useState<Record<string, ComandaItem[]>>({});
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [ordersReloadKey, setOrdersReloadKey] = useState(0);
 
   useEffect(() => {
     let alive = true;
     let unsub: (() => void) | null = null;
 
-    ensureAnonAuth().then(() => {
-      if (!alive) return;
+    ensureAnonAuth()
+      .then(() => {
+        if (!alive) return;
 
-      unsub = onSnapshot(
-        ordersCollection(),
-        (snap) => {
-          const next = snap.docs.map((d) => normalizeOrder(d.id, d.data()));
-          next.sort((a, b) => (b.openedAt || "").localeCompare(a.openedAt || ""));
-          if (alive) setComandas(next);
-        },
-        () => {
-          if (alive) setComandas([]);
+        setOrdersError(null);
+        unsub = onSnapshot(
+          ordersCollection(),
+          (snap) => {
+            const next = snap.docs.map((d) => normalizeOrder(d.id, d.data()));
+            next.sort((a, b) => (b.openedAt || "").localeCompare(a.openedAt || ""));
+            if (alive) setComandas(next);
+          },
+          () => {
+            if (alive) {
+              setComandas([]);
+              setOrdersError("Nao foi possivel carregar as comandas.");
+            }
+          }
+        );
+      })
+      .catch(() => {
+        if (alive) {
+          setComandas([]);
+          setOrdersError("Sem conexao. Tente novamente.");
         }
-      );
-    });
+      });
 
     return () => {
       alive = false;
       if (unsub) unsub();
     };
+  }, [ordersReloadKey]);
+
+  const reloadOrders = useCallback(() => {
+    setOrdersReloadKey((prev) => prev + 1);
   }, []);
 
   const seedIfEmpty = () => {};
@@ -235,21 +254,25 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
     let alive = true;
     let unsub: (() => void) | null = null;
 
-    ensureAnonAuth().then(() => {
-      if (!alive) return;
+    ensureAnonAuth()
+      .then(() => {
+        if (!alive) return;
 
-      unsub = onSnapshot(
-        itemsCollection(comandaId),
-        (snap) => {
-          const next = snap.docs.map((d) => normalizeItem(d.id, d.data()));
-          next.sort((a, b) => (a.addedAt || "").localeCompare(b.addedAt || ""));
-          setItemsByComandaId((prev) => ({ ...prev, [comandaId]: next }));
-        },
-        () => {
-          if (alive) setItemsByComandaId((prev) => ({ ...prev, [comandaId]: [] }));
-        }
-      );
-    });
+        unsub = onSnapshot(
+          itemsCollection(comandaId),
+          (snap) => {
+            const next = snap.docs.map((d) => normalizeItem(d.id, d.data()));
+            next.sort((a, b) => (a.addedAt || "").localeCompare(b.addedAt || ""));
+            setItemsByComandaId((prev) => ({ ...prev, [comandaId]: next }));
+          },
+          () => {
+            if (alive) setItemsByComandaId((prev) => ({ ...prev, [comandaId]: [] }));
+          }
+        );
+      })
+      .catch(() => {
+        if (alive) setItemsByComandaId((prev) => ({ ...prev, [comandaId]: [] }));
+      });
 
     return () => {
       alive = false;
@@ -491,6 +514,8 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(
     () => ({
       comandas,
+      ordersError,
+      reloadOrders,
       getComandaById,
       getComandaTotal,
       isComandaClosed,
@@ -504,7 +529,7 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
       closeComanda,
       subscribeToComandaItems,
     }),
-    [comandas, itemsByComandaId]
+    [comandas, itemsByComandaId, ordersError, reloadOrders]
   );
 
   return <ComandaContext.Provider value={value}>{children}</ComandaContext.Provider>;

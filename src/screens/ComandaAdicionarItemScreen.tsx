@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, Alert } from "react-native";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,6 +14,7 @@ type RouteParams = {
 };
 
 const PRIMARY_GREEN = "#2E7D32";
+const SECONDARY_BLUE = "#1976D2";
 const BG = "#F5F5F5";
 const WHITE = "#FFFFFF";
 const TEXT = "#212121";
@@ -51,6 +52,7 @@ export default function ComandaAdicionarItemScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -77,7 +79,7 @@ export default function ComandaAdicionarItemScreen() {
       return () => {
         alive = false;
       };
-    }, [])
+    }, [reloadKey])
   );
 
   const activeProducts = useMemo(() => products.filter((p) => p.active !== false), [products]);
@@ -126,21 +128,29 @@ export default function ComandaAdicionarItemScreen() {
   const addAllToComanda = async () => {
     if (totals.items <= 0) return;
 
+    let failed = false;
+
     for (const [productId, qty] of Object.entries(qtyByProduct)) {
       if (qty <= 0) continue;
 
       const p = activeProducts.find((x) => x.id === productId);
       if (!p) continue;
 
-      await addItemToComanda(comandaId, {
+      const ok = await addItemToComanda(comandaId, {
         productId: p.id,
         name: p.name,
         price: p.price,
         qty,
       });
+
+      if (!ok) failed = true;
     }
 
     setQtyByProduct({});
+    if (failed) {
+      Alert.alert("Atualizando...", "Tente de novo.");
+      return;
+    }
     navigation.goBack();
   };
 
@@ -180,6 +190,9 @@ export default function ComandaAdicionarItemScreen() {
         ) : error ? (
           <View style={styles.empty}>
             <Text style={styles.emptyText}>{error}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => setReloadKey((v) => v + 1)}>
+              <Text style={styles.retryText}>Recarregar</Text>
+            </TouchableOpacity>
           </View>
         ) : filtered.length === 0 ? (
           <View style={styles.empty}>
@@ -193,8 +206,7 @@ export default function ComandaAdicionarItemScreen() {
             contentContainerStyle={{ paddingBottom: 16 }}
             renderItem={({ item }) => {
               const qty = getQty(item.id);
-              const displayQty =
-                item.unitType === "kg" ? formatQtyDisplay(qty) : String(Math.round(qty));
+              const displayQty = item.unitType === "kg" ? formatQtyDisplay(qty) : String(Math.round(qty));
 
               return (
                 <View style={styles.card}>
@@ -223,6 +235,7 @@ export default function ComandaAdicionarItemScreen() {
             }}
           />
         )}
+
       </View>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
@@ -285,6 +298,15 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   emptyText: { fontSize: 14, color: MUTED, fontWeight: "700" },
+  retryBtn: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: SECONDARY_BLUE,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  retryText: { color: SECONDARY_BLUE, fontSize: 14, fontWeight: "700" },
 
   card: {
     flexDirection: "row",
@@ -311,7 +333,14 @@ const styles = StyleSheet.create({
   qtyBtnDisabled: { backgroundColor: "#F2F2F2" },
   qtyBtnText: { fontSize: 16, fontWeight: "900", color: TEXT },
   qtyBtnTextDisabled: { color: "#9E9E9E" },
-  qtyText: { paddingHorizontal: 12, fontSize: 13, fontWeight: "800", color: TEXT, minWidth: 24, textAlign: "center" },
+  qtyText: {
+    paddingHorizontal: 12,
+    fontSize: 13,
+    fontWeight: "800",
+    color: TEXT,
+    minWidth: 24,
+    textAlign: "center",
+  },
 
   footer: {
     borderTopWidth: 1,

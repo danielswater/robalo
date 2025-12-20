@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -17,6 +17,8 @@ import ComandaAdicionarItemScreen from './src/screens/ComandaAdicionarItemScreen
 
 import AppHeaderTitle from './src/components/AppHeaderTitle';
 import { ComandaProvider } from './src/context/ComandaContext';
+import AppSplash from './src/components/AppSplash';
+import { ensureAnonAuth } from './src/firebase';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -113,6 +115,21 @@ function MainTabs() {
 }
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowSplash(false), 700);
+    ensureAnonAuth().catch(() => {});
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, []);
+
+  if (showSplash) {
+    return <AppSplash />;
+  }
+
   return (
     <ComandaProvider>
       <NavigationContainer>

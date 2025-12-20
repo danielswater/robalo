@@ -111,7 +111,10 @@ export default function ComandaDetalheScreen() {
   const saveQty = async () => {
     if (!editingItemId) return;
     const ok = await updateItemQty(comandaId, editingItemId, parseQty());
-    if (!ok) Alert.alert("Comanda fechada", "Nao da pra editar itens depois de fechar.");
+    if (!ok) {
+      if (closed) Alert.alert("Comanda fechada", "Nao da pra editar itens depois de fechar.");
+      else Alert.alert("Atualizando...", "Tente de novo.");
+    }
     closeEdit();
   };
 
@@ -125,7 +128,10 @@ export default function ComandaDetalheScreen() {
         style: "destructive",
         onPress: async () => {
           const ok = await removeItemFromComanda(comandaId, itemId);
-          if (!ok) Alert.alert("Comanda fechada", "Nao da pra remover itens depois de fechar.");
+          if (!ok) {
+            if (closed) Alert.alert("Comanda fechada", "Nao da pra remover itens depois de fechar.");
+            else Alert.alert("Atualizando...", "Tente de novo.");
+          }
         },
       },
     ]);
@@ -269,7 +275,9 @@ export default function ComandaDetalheScreen() {
         <Text style={styles.sectionTitle}>Itens</Text>
 
         {items.length === 0 ? (
-          <Text style={styles.muted}>Sem itens.</Text>
+          <View>
+            <Text style={styles.muted}>Sem itens. Toque em "Adicionar item".</Text>
+          </View>
         ) : (
           <FlatList
             data={items}
@@ -456,7 +464,10 @@ export default function ComandaDetalheScreen() {
                     style: "destructive",
                     onPress: async () => {
                       const ok = await removeItemFromComanda(comandaId, editingItemId);
-                      if (!ok) Alert.alert("Comanda fechada", "Nao da pra remover itens depois de fechar.");
+                      if (!ok) {
+                        if (closed) Alert.alert("Comanda fechada", "Nao da pra remover itens depois de fechar.");
+                        else Alert.alert("Atualizando...", "Tente de novo.");
+                      }
                       closeEdit();
                     },
                   },
@@ -545,6 +556,7 @@ const styles = StyleSheet.create({
   itemName: { fontSize: 14, fontWeight: "800", color: TEXT },
   itemSub: { marginTop: 2, fontSize: 12, color: MUTED },
   itemTotal: { marginLeft: 12, fontSize: 13, fontWeight: "800", color: PRIMARY_GREEN },
+
 
   footer: {
     padding: 16,

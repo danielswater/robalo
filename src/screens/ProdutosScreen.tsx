@@ -55,6 +55,7 @@ export default function ProdutosScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
 
   const loadProducts = useCallback(async (aliveRef?: { current: boolean }) => {
     try {
@@ -85,9 +86,13 @@ export default function ProdutosScreen() {
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-    if (!s) return produtos;
-    return produtos.filter((p) => p.name.toLowerCase().includes(s));
-  }, [produtos, search]);
+    return produtos.filter((p) => {
+      if (filter === "active" && !p.active) return false;
+      if (filter === "inactive" && p.active) return false;
+      if (!s) return true;
+      return p.name.toLowerCase().includes(s);
+    });
+  }, [produtos, search, filter]);
 
   const toggleActive = async (id: string, active: boolean) => {
     try {
@@ -160,8 +165,9 @@ export default function ProdutosScreen() {
 
       await loadProducts();
       setModalOpen(false);
-    } catch {
-      Alert.alert("Erro", "Nao foi possivel salvar o produto.");
+    } catch (error: any) {
+      const msg = String(error?.message || error || "Nao foi possivel salvar o produto.");
+      Alert.alert("Erro", msg);
     }
   };
 
@@ -172,6 +178,27 @@ export default function ProdutosScreen() {
           <Ionicons name="add" size={18} color={WHITE} />
           <Text style={styles.newBtnText}>Novo produto</Text>
         </TouchableOpacity>
+
+        <View style={styles.filterRow}>
+          <TouchableOpacity
+            style={[styles.filterBtn, filter === "all" && styles.filterBtnActive]}
+            onPress={() => setFilter("all")}
+          >
+            <Text style={[styles.filterText, filter === "all" && styles.filterTextActive]}>Todos</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.filterBtn, filter === "active" && styles.filterBtnActive]}
+            onPress={() => setFilter("active")}
+          >
+            <Text style={[styles.filterText, filter === "active" && styles.filterTextActive]}>Ativos</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.filterBtn, filter === "inactive" && styles.filterBtnActive]}
+            onPress={() => setFilter("inactive")}
+          >
+            <Text style={[styles.filterText, filter === "inactive" && styles.filterTextActive]}>Inativos</Text>
+          </TouchableOpacity>
+        </View>
 
         <TextInput
           value={search}
@@ -189,6 +216,9 @@ export default function ProdutosScreen() {
       ) : error ? (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>{error}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => loadProducts()}>
+            <Text style={styles.retryText}>Recarregar</Text>
+          </TouchableOpacity>
         </View>
       ) : filtered.length === 0 ? (
         <View style={styles.empty}>
@@ -234,6 +264,7 @@ export default function ProdutosScreen() {
           )}
         />
       )}
+
 
       <Modal transparent visible={modalOpen} animationType="fade" onRequestClose={closeModal}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalOverlay}>
@@ -317,9 +348,33 @@ const styles = StyleSheet.create({
     color: TEXT,
   },
 
+  filterRow: {
+    flexDirection: "row",
+    backgroundColor: WHITE,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 12,
+    overflow: "hidden",
+    marginBottom: 12,
+  },
+  filterBtn: { flex: 1, paddingVertical: 10, alignItems: "center" },
+  filterBtnActive: { backgroundColor: "#E8F5E9" },
+  filterText: { fontSize: 13, fontWeight: "900", color: MUTED },
+  filterTextActive: { color: PRIMARY_GREEN },
+
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20 },
   emptyTitle: { fontSize: 16, fontWeight: "900", color: TEXT, marginBottom: 6 },
   emptyText: { fontSize: 14, color: MUTED, textAlign: "center" },
+  retryBtn: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: SECONDARY_BLUE,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  retryText: { color: SECONDARY_BLUE, fontSize: 14, fontWeight: "700" },
+
 
   card: {
     backgroundColor: WHITE,

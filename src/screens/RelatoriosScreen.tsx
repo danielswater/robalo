@@ -1,45 +1,37 @@
 import React, { useMemo, useState } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput } from "react-native";
+import { Alert, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { useComandas } from "../context/ComandaContext";
 import type { PaymentMethod } from "../models/firestoreModels";
 
 const PRIMARY_GREEN = "#2E7D32";
 const SECONDARY_BLUE = "#1976D2";
-const BORDER = "#E0E0E0";
 const BG = "#F5F5F5";
 const WHITE = "#FFFFFF";
 const TEXT = "#212121";
 const MUTED = "#757575";
-const ERROR_RED = "#D32F2F";
+const BORDER = "#E0E0E0";
 
-type Mode = "TODAY" | "CUSTOM";
+type Mode = "today" | "period";
 
-function paymentLabel(p?: PaymentMethod | null) {
-  if (p === "pix") return "Pix";
-  if (p === "card") return "Cartao";
-  if (p === "cash") return "Dinheiro";
-  return "-";
+type AttendantTotal = {
+  name: string;
+  total: number;
+};
+
+function formatMoney(value: number) {
+  return `R$ ${value.toFixed(2).replace(".", ",")}`;
 }
 
-function formatMoney(v: number) {
-  return `R$ ${v.toFixed(2).replace(".", ",")}`;
-}
-
-function formatTime(d: Date) {
+function formatTime(value?: string | null) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
   return `${hh}:${mm}`;
-}
-
-function startOfDay(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
-}
-
-function addDays(d: Date, days: number) {
-  const copy = new Date(d);
-  copy.setDate(copy.getDate() + days);
-  return copy;
 }
 
 function formatDate(d: Date) {
@@ -49,328 +41,344 @@ function formatDate(d: Date) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
-function maskDateInput(value: string) {
-  const digits = (value || "").replace(/\D/g, "").slice(0, 8); // DDMMYYYY
-  const dd = digits.slice(0, 2);
-  const mm = digits.slice(2, 4);
-  const yyyy = digits.slice(4, 8);
-
-  if (digits.length <= 2) return dd;
-  if (digits.length <= 4) return `${dd}/${mm}`;
-  return `${dd}/${mm}/${yyyy}`;
-}
-
-function parseDatePtBR(text: string): Date | null {
-  const clean = (text || "").trim();
-  if (!clean) return null;
-
-  const parts = clean.replace(/-/g, "/").split("/");
+function parseDatePtBR(value: string) {
+  const parts = value.split("/");
   if (parts.length !== 3) return null;
-
-  const dd = Number(parts[0]);
-  const mm = Number(parts[1]);
-  const yyyy = Number(parts[2]);
-
-  if (!Number.isFinite(dd) || !Number.isFinite(mm) || !Number.isFinite(yyyy)) return null;
-  if (yyyy < 2000 || yyyy > 2100) return null;
-  if (mm < 1 || mm > 12) return null;
-  if (dd < 1 || dd > 31) return null;
-
-  const d = new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
-
+  const [dd, mm, yyyy] = parts.map((v) => Number(v));
+  if (!dd || !mm || !yyyy) return null;
+  const d = new Date(yyyy, mm - 1, dd);
+  if (Number.isNaN(d.getTime())) return null;
   if (d.getFullYear() !== yyyy || d.getMonth() !== mm - 1 || d.getDate() !== dd) return null;
-
   return d;
 }
 
+function maskDateInput(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function startOfDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function addDays(d: Date, days: number) {
+  const copy = new Date(d);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function parseClosedDate(value?: string | null) {
+  if (!value) return null;
+  const parts = value.split("-");
+  if (parts.length !== 3) return null;
+  const [yyyy, mm, dd] = parts.map((v) => Number(v));
+  if (!dd || !mm || !yyyy) return null;
+  const d = new Date(yyyy, mm - 1, dd);
+  if (Number.isNaN(d.getTime())) return null;
+  if (d.getFullYear() !== yyyy || d.getMonth() !== mm - 1 || d.getDate() !== dd) return null;
+  return d;
+}
+
+function paymentLabel(p: PaymentMethod) {
+  if (p === "cash") return "Dinheiro";
+  if (p === "card") return "Cartao";
+  return "Pix";
+}
+
 export default function RelatoriosScreen() {
+  const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const { comandas, getComandaTotal } = useComandas();
+  const { comandas } = useComandas();
 
-  const now = new Date();
-  const todayStart = startOfDay(now);
-  const tomorrowStart = addDays(todayStart, 1);
-
-  const [mode, setMode] = useState<Mode>("TODAY");
-
-  const [startText, setStartText] = useState("");
-  const [endText, setEndText] = useState("");
+  const [mode, setMode] = useState<Mode>("today");
+  const [startInput, setStartInput] = useState("");
+  const [endInput, setEndInput] = useState("");
   const [appliedStart, setAppliedStart] = useState<Date | null>(null);
   const [appliedEnd, setAppliedEnd] = useState<Date | null>(null);
-  const [error, setError] = useState<string>("");
 
-  const effectiveRange = useMemo(() => {
-    if (mode === "TODAY") {
-      return { start: todayStart, endExclusive: tomorrowStart, label: "Hoje" };
+  const range = useMemo(() => {
+    if (mode === "today") {
+      const start = startOfDay(new Date());
+      const end = addDays(start, 1);
+      return {
+        start,
+        end,
+        label: "Hoje",
+      };
     }
 
-    if (!appliedStart || !appliedEnd) {
-      return { start: null as Date | null, endExclusive: null as Date | null, label: "Selecione um periodo" };
-    }
-
+    if (!appliedStart || !appliedEnd) return null;
     const start = startOfDay(appliedStart);
-    const endExclusive = addDays(startOfDay(appliedEnd), 1);
-
-    return {
-      start,
-      endExclusive,
-      label: `${formatDate(start)} ate ${formatDate(appliedEnd)}`,
-    };
-  }, [mode, todayStart, tomorrowStart, appliedStart, appliedEnd]);
+    const end = addDays(startOfDay(appliedEnd), 1);
+    const label = `${formatDate(start)} ate ${formatDate(addDays(end, -1))}`;
+    return { start, end, label };
+  }, [mode, appliedStart, appliedEnd]);
 
   const closedInRange = useMemo(() => {
-    if (mode === "CUSTOM" && (!effectiveRange.start || !effectiveRange.endExclusive)) return [];
+    if (mode === "period" && !range) return [];
 
-    const startMs = (effectiveRange.start as Date).getTime();
-    const endMs = (effectiveRange.endExclusive as Date).getTime();
+    const list = (comandas || []).filter((c) => c.status === "closed");
 
-    return (comandas || [])
-      .filter((c) => c.status === "closed")
-      .filter((c) => {
-        if (!c.closedAt) return false;
-        const d = new Date(c.closedAt);
-        const ms = d.getTime();
-        if (Number.isNaN(ms)) return false;
-        return ms >= startMs && ms < endMs;
-      })
-      .sort((a, b) => {
-        const da = a.closedAt ? new Date(a.closedAt).getTime() : 0;
-        const db = b.closedAt ? new Date(b.closedAt).getTime() : 0;
-        return db - da;
-      });
-  }, [comandas, mode, effectiveRange.start, effectiveRange.endExclusive]);
+    const filtered = list.filter((c) => {
+      const closedAt = c.closedAt ? new Date(c.closedAt) : null;
+      const closedDate = parseClosedDate(c.closedDate || "");
+      const when = closedAt && !Number.isNaN(closedAt.getTime()) ? closedAt : closedDate;
+      if (!when) return false;
+      return when >= range!.start && when < range!.end;
+    });
+
+    filtered.sort((a, b) => {
+      const aDate = a.closedAt ? new Date(a.closedAt) : parseClosedDate(a.closedDate || "");
+      const bDate = b.closedAt ? new Date(b.closedAt) : parseClosedDate(b.closedDate || "");
+      const aTime = aDate && !Number.isNaN(aDate.getTime()) ? aDate.getTime() : 0;
+      const bTime = bDate && !Number.isNaN(bDate.getTime()) ? bDate.getTime() : 0;
+      return bTime - aTime;
+    });
+
+    return filtered;
+  }, [comandas, range, mode]);
 
   const totals = useMemo(() => {
+    const byPayment: Record<PaymentMethod, number> = {
+      pix: 0,
+      card: 0,
+      cash: 0,
+    };
+    const byAttendant: Record<string, number> = {};
+
     let total = 0;
-    let pix = 0;
-    let card = 0;
-    let cash = 0;
 
-    for (const c of closedInRange) {
-      const t = getComandaTotal(c.id);
-      total += t;
+    closedInRange.forEach((c) => {
+      const amount = Number(c.total || 0);
+      if (!Number.isFinite(amount)) return;
 
-      if (c.paymentMethod === "pix") pix += t;
-      else if (c.paymentMethod === "card") card += t;
-      else if (c.paymentMethod === "cash") cash += t;
-    }
+      total += amount;
+      if (c.paymentMethod) {
+        byPayment[c.paymentMethod] += amount;
+      }
 
-    return { total, pix, card, cash, count: closedInRange.length };
-  }, [closedInRange, getComandaTotal]);
+      const att = (c.closedBy || c.currentAttendant || "Atendente").trim() || "Atendente";
+      byAttendant[att] = (byAttendant[att] || 0) + amount;
+    });
 
-  const subtitle =
-    mode === "CUSTOM" && (!appliedStart || !appliedEnd)
-      ? 'Escolha um periodo e toque em "Aplicar".'
-      : totals.count === 0
-        ? "Nenhuma comanda fechada nesse periodo."
-        : `${totals.count} comanda(s) fechada(s) nesse periodo.`;
+    const attendants: AttendantTotal[] = Object.entries(byAttendant)
+      .map(([name, value]) => ({ name, total: value }))
+      .sort((a, b) => b.total - a.total);
 
-  const applyCustom = () => {
-    const s = parseDatePtBR(startText);
-    const e = parseDatePtBR(endText);
+    return { total, byPayment, attendants };
+  }, [closedInRange]);
 
-    if (!s || !e) {
-      setError("Data invalida. Use DD/MM/AAAA.");
+  const onApply = () => {
+    const start = parseDatePtBR(startInput);
+    const end = parseDatePtBR(endInput);
+
+    if (!start || !end) {
+      Alert.alert("Periodo invalido", "Digite as duas datas no formato dd/mm/aaaa.");
       return;
     }
 
-    if (s.getTime() > e.getTime()) {
-      setError("A data inicio nao pode ser depois da data fim.");
+    if (end < start) {
+      Alert.alert("Periodo invalido", "A data final precisa ser maior ou igual a inicial.");
       return;
     }
 
-    setError("");
-    setAppliedStart(s);
-    setAppliedEnd(e);
+    setAppliedStart(start);
+    setAppliedEnd(end);
   };
 
-  const clearCustom = () => {
-    setStartText("");
-    setEndText("");
+  const onClear = () => {
+    setStartInput("");
+    setEndInput("");
     setAppliedStart(null);
     setAppliedEnd(null);
-    setError("");
   };
 
+  const periodText = range ? `Periodo: ${range.label}` : `Escolha um periodo e toque em "Aplicar".`;
+  const countText = `${closedInRange.length} comanda(s)`;
+
+  const emptyMessage =
+    mode === "period" && !range
+      ? 'Escolha um periodo e toque em "Aplicar".'
+      : "Nenhuma comanda fechada nesse periodo.";
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Relatorios</Text>
-        <Text style={styles.subTitle}>{subtitle}</Text>
-      </View>
-
-      <View style={styles.modeBox}>
-        <TouchableOpacity
-          style={[styles.modeBtn, mode === "TODAY" && styles.modeBtnSelected]}
-          onPress={() => setMode("TODAY")}
-        >
-          <Text style={[styles.modeText, mode === "TODAY" && styles.modeTextSelected]}>Hoje</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.modeBtn, mode === "CUSTOM" && styles.modeBtnSelected]}
-          onPress={() => setMode("CUSTOM")}
-        >
-          <Text style={[styles.modeText, mode === "CUSTOM" && styles.modeTextSelected]}>Periodo</Text>
-        </TouchableOpacity>
-      </View>
-
-      {mode === "CUSTOM" ? (
-        <View style={styles.customCard}>
-          <Text style={styles.customTitle}>Periodo personalizado</Text>
-
-          <View style={styles.inputsRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.inputLabel}>Inicio</Text>
-              <TextInput
-                value={startText}
-                onChangeText={(v) => setStartText(maskDateInput(v))}
-                placeholder="DD/MM/AAAA"
-                placeholderTextColor="#9E9E9E"
-                style={styles.input}
-                keyboardType="number-pad"
-                maxLength={10}
-              />
-            </View>
-
-            <View style={{ width: 10 }} />
-
-            <View style={{ flex: 1 }}>
-              <Text style={styles.inputLabel}>Fim</Text>
-              <TextInput
-                value={endText}
-                onChangeText={(v) => setEndText(maskDateInput(v))}
-                placeholder="DD/MM/AAAA"
-                placeholderTextColor="#9E9E9E"
-                style={styles.input}
-                keyboardType="number-pad"
-                maxLength={10}
-              />
-            </View>
-          </View>
-
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          <View style={styles.customButtonsRow}>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={clearCustom}>
-              <Text style={styles.secondaryBtnText}>Limpar</Text>
+    <FlatList
+      style={styles.container}
+      data={closedInRange}
+      keyExtractor={(item) => item.id}
+      contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
+      ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+      ListHeaderComponent={
+        <View style={styles.headerContent}>
+          <View style={styles.segment}>
+            <TouchableOpacity
+              style={[styles.segmentBtn, mode === "today" && styles.segmentBtnActive]}
+              onPress={() => setMode("today")}
+            >
+              <Text style={[styles.segmentText, mode === "today" && styles.segmentTextActive]}>Hoje</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity style={styles.primaryBtn} onPress={applyCustom}>
-              <Text style={styles.primaryBtnText}>Aplicar</Text>
+            <TouchableOpacity
+              style={[styles.segmentBtn, mode === "period" && styles.segmentBtnActive]}
+              onPress={() => setMode("period")}
+            >
+              <Text style={[styles.segmentText, mode === "period" && styles.segmentTextActive]}>Periodo</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      ) : null}
 
-      <Text style={styles.periodLine}>Periodo: {effectiveRange.label}</Text>
-
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Total do periodo</Text>
-        <Text style={styles.bigValue}>{formatMoney(totals.total)}</Text>
-      </View>
-
-      <View style={styles.row}>
-        <View style={[styles.smallCard, { flex: 1 }]}>
-          <Text style={styles.smallTitle}>Pix</Text>
-          <Text style={styles.smallValue}>{formatMoney(totals.pix)}</Text>
-        </View>
-        <View style={[styles.smallCard, { flex: 1 }]}>
-          <Text style={styles.smallTitle}>Cartao</Text>
-          <Text style={styles.smallValue}>{formatMoney(totals.card)}</Text>
-        </View>
-        <View style={[styles.smallCard, { flex: 1 }]}>
-          <Text style={styles.smallTitle}>Dinheiro</Text>
-          <Text style={styles.smallValue}>{formatMoney(totals.cash)}</Text>
-        </View>
-      </View>
-
-      <Text style={styles.sectionTitle}>Comandas fechadas</Text>
-
-      {mode === "CUSTOM" && (!appliedStart || !appliedEnd) ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>Escolha um periodo e toque em "Aplicar".</Text>
-        </View>
-      ) : closedInRange.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>Nenhuma comanda fechada nesse periodo.</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={closedInRange}
-          keyExtractor={(it) => it.id}
-          contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
-          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-          renderItem={({ item }) => {
-            const total = getComandaTotal(item.id);
-            const when = item.closedAt ? new Date(item.closedAt) : null;
-            const time = when && !Number.isNaN(when.getTime()) ? formatTime(when) : "-";
-
-            return (
-              <View style={styles.listCard}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.listTitle}>{item.nickname || "Sem apelido"}</Text>
-                  <Text style={styles.listSub}>
-                    {paymentLabel(item.paymentMethod)} - {time}
-                  </Text>
+          {mode === "period" ? (
+            <View style={styles.periodCard}>
+              <Text style={styles.sectionTitle}>Periodo personalizado</Text>
+              <View style={styles.periodRow}>
+                <View style={styles.periodCol}>
+                  <Text style={styles.inputLabel}>Inicio</Text>
+                  <TextInput
+                    value={startInput}
+                    onChangeText={(v) => setStartInput(maskDateInput(v))}
+                    placeholder="dd/mm/aaaa"
+                    placeholderTextColor="#9E9E9E"
+                    keyboardType="number-pad"
+                    style={styles.input}
+                  />
                 </View>
-                <Text style={styles.listValue}>{formatMoney(total)}</Text>
+                <View style={styles.periodCol}>
+                  <Text style={styles.inputLabel}>Fim</Text>
+                  <TextInput
+                    value={endInput}
+                    onChangeText={(v) => setEndInput(maskDateInput(v))}
+                    placeholder="dd/mm/aaaa"
+                    placeholderTextColor="#9E9E9E"
+                    keyboardType="number-pad"
+                    style={styles.input}
+                  />
+                </View>
               </View>
-            );
-          }}
-        />
-      )}
-    </View>
+
+              <View style={styles.periodButtons}>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={onClear}>
+                  <Text style={styles.secondaryBtnText}>Limpar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.primaryBtn} onPress={onApply}>
+                  <Text style={styles.primaryBtnText}>Aplicar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
+
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryTop}>
+              <Text style={styles.summaryTitle}>Total do periodo</Text>
+              <Text style={styles.summaryCount}>{countText}</Text>
+            </View>
+            <Text style={styles.summaryAmount}>{formatMoney(totals.total)}</Text>
+            <Text style={styles.summaryMeta}>{periodText}</Text>
+
+            <View style={styles.paymentRow}>
+              <View style={styles.paymentItem}>
+                <Text style={styles.paymentLabel}>Pix</Text>
+                <Text style={styles.paymentValue}>{formatMoney(totals.byPayment.pix)}</Text>
+              </View>
+              <View style={styles.paymentItem}>
+                <Text style={styles.paymentLabel}>Cartao</Text>
+                <Text style={styles.paymentValue}>{formatMoney(totals.byPayment.card)}</Text>
+              </View>
+              <View style={styles.paymentItem}>
+                <Text style={styles.paymentLabel}>Dinheiro</Text>
+                <Text style={styles.paymentValue}>{formatMoney(totals.byPayment.cash)}</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.attCard}>
+            <Text style={styles.sectionTitle}>Por atendente</Text>
+            {totals.attendants.length === 0 ? (
+              <Text style={styles.emptyText}>Sem vendas nesse periodo.</Text>
+            ) : (
+              totals.attendants.map((a) => (
+                <View key={a.name} style={styles.attRow}>
+                  <Text style={styles.attName}>{a.name}</Text>
+                  <Text style={styles.attValue}>{formatMoney(a.total)}</Text>
+                </View>
+              ))
+            )}
+          </View>
+
+          <Text style={styles.listTitle}>Comandas fechadas</Text>
+        </View>
+      }
+      ListEmptyComponent={
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyText}>{emptyMessage}</Text>
+        </View>
+      }
+      renderItem={({ item }) => {
+        const method = item.paymentMethod ? paymentLabel(item.paymentMethod) : "Pagamento";
+        const time = formatTime(item.closedAt);
+        const subtitle = time ? `${method} - ${time}` : method;
+        const total = Number(item.total || 0);
+
+        return (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate("ComandaDetalhe", { id: item.id, nickname: item.nickname })}
+          >
+            <View style={styles.card}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>{item.nickname || "Sem apelido"}</Text>
+                <Text style={styles.cardSub}>{subtitle}</Text>
+              </View>
+              <Text style={styles.cardValue}>{formatMoney(Number.isFinite(total) ? total : 0)}</Text>
+            </View>
+          </TouchableOpacity>
+        );
+      }}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG, paddingHorizontal: 16 },
+  container: { flex: 1, backgroundColor: BG },
+  headerContent: { padding: 16, paddingBottom: 8, gap: 12 },
 
-  header: { paddingTop: 12, paddingBottom: 10 },
-  title: { fontSize: 18, fontWeight: "900", color: TEXT },
-  subTitle: { marginTop: 4, fontSize: 13, color: MUTED, fontWeight: "700" },
-
-  modeBox: { flexDirection: "row", gap: 10, marginTop: 6, marginBottom: 10 },
-  modeBtn: {
-    flex: 1,
+  segment: {
+    flexDirection: "row",
+    backgroundColor: WHITE,
     borderWidth: 1,
     borderColor: BORDER,
-    backgroundColor: WHITE,
     borderRadius: 12,
-    paddingVertical: 10,
+    overflow: "hidden",
+  },
+  segmentBtn: {
+    flex: 1,
+    paddingVertical: 12,
     alignItems: "center",
   },
-  modeBtnSelected: { borderColor: SECONDARY_BLUE, backgroundColor: "#E3F2FD" },
-  modeText: { fontSize: 13, fontWeight: "900", color: TEXT },
-  modeTextSelected: { color: SECONDARY_BLUE },
+  segmentBtnActive: { backgroundColor: "#E8F5E9" },
+  segmentText: { fontSize: 14, fontWeight: "800", color: MUTED },
+  segmentTextActive: { color: PRIMARY_GREEN },
 
-  customCard: {
+  periodCard: {
     backgroundColor: WHITE,
     borderWidth: 1,
     borderColor: BORDER,
     borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
+    padding: 12,
   },
-  customTitle: { fontSize: 14, fontWeight: "900", color: TEXT, marginBottom: 10 },
-
-  inputsRow: { flexDirection: "row" },
-  inputLabel: { fontSize: 12, fontWeight: "900", color: MUTED, marginBottom: 6 },
+  sectionTitle: { fontSize: 14, fontWeight: "900", color: TEXT, marginBottom: 10 },
+  periodRow: { flexDirection: "row", gap: 10 },
+  periodCol: { flex: 1 },
+  inputLabel: { fontSize: 12, fontWeight: "700", color: MUTED, marginBottom: 6 },
   input: {
     borderWidth: 1,
     borderColor: BORDER,
     borderRadius: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 10,
-    fontSize: 14,
     backgroundColor: WHITE,
     color: TEXT,
   },
-
-  error: { marginTop: 10, color: ERROR_RED, fontSize: 13, fontWeight: "800" },
-
-  customButtonsRow: { flexDirection: "row", gap: 10, marginTop: 12 },
+  periodButtons: { flexDirection: "row", gap: 10, marginTop: 12 },
   primaryBtn: {
     flex: 1,
     backgroundColor: PRIMARY_GREEN,
@@ -379,19 +387,55 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   primaryBtnText: { color: WHITE, fontSize: 14, fontWeight: "900" },
-
   secondaryBtn: {
     flex: 1,
-    backgroundColor: WHITE,
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",
     borderWidth: 1,
     borderColor: SECONDARY_BLUE,
+    backgroundColor: WHITE,
   },
   secondaryBtnText: { color: SECONDARY_BLUE, fontSize: 14, fontWeight: "900" },
 
-  periodLine: { fontSize: 12, color: MUTED, fontWeight: "700", marginBottom: 10 },
+  summaryCard: {
+    backgroundColor: WHITE,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 12,
+    padding: 14,
+  },
+  summaryTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  summaryTitle: { fontSize: 14, fontWeight: "900", color: TEXT },
+  summaryCount: { fontSize: 12, color: MUTED, fontWeight: "700" },
+  summaryAmount: { marginTop: 6, fontSize: 22, fontWeight: "900", color: PRIMARY_GREEN },
+  summaryMeta: { marginTop: 4, fontSize: 12, color: MUTED, fontWeight: "700" },
+
+  paymentRow: { flexDirection: "row", marginTop: 12, gap: 10 },
+  paymentItem: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    backgroundColor: "#FAFAFA",
+  },
+  paymentLabel: { fontSize: 12, color: MUTED, fontWeight: "700" },
+  paymentValue: { marginTop: 4, fontSize: 13, fontWeight: "900", color: TEXT },
+
+  attCard: {
+    backgroundColor: WHITE,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 12,
+    padding: 14,
+  },
+  attRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 },
+  attName: { fontSize: 14, fontWeight: "800", color: TEXT },
+  attValue: { fontSize: 14, fontWeight: "900", color: PRIMARY_GREEN },
+
+  listTitle: { fontSize: 15, fontWeight: "900", color: TEXT, marginTop: 6 },
 
   card: {
     backgroundColor: WHITE,
@@ -399,43 +443,21 @@ const styles = StyleSheet.create({
     borderColor: BORDER,
     borderRadius: 12,
     padding: 14,
+    marginHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
   },
-  cardTitle: { fontSize: 13, fontWeight: "900", color: MUTED },
-  bigValue: { marginTop: 6, fontSize: 20, fontWeight: "900", color: PRIMARY_GREEN },
+  cardTitle: { fontSize: 15, fontWeight: "900", color: TEXT },
+  cardSub: { marginTop: 4, fontSize: 12, color: MUTED },
+  cardValue: { fontSize: 14, fontWeight: "900", color: PRIMARY_GREEN },
 
-  row: { flexDirection: "row", gap: 10, marginTop: 10 },
-  smallCard: {
-    backgroundColor: WHITE,
-    borderWidth: 1,
-    borderColor: BORDER,
-    borderRadius: 12,
-    padding: 12,
-  },
-  smallTitle: { fontSize: 12, fontWeight: "900", color: MUTED },
-  smallValue: { marginTop: 6, fontSize: 14, fontWeight: "900", color: TEXT },
-
-  sectionTitle: { marginTop: 14, marginBottom: 10, fontSize: 14, fontWeight: "900", color: TEXT },
-
-  empty: {
-    flex: 1,
-    backgroundColor: WHITE,
-    borderWidth: 1,
-    borderColor: BORDER,
-    borderRadius: 12,
-    padding: 16,
-  },
-  emptyText: { fontSize: 14, color: MUTED, fontWeight: "700" },
-
-  listCard: {
-    backgroundColor: WHITE,
+  emptyCard: {
+    marginHorizontal: 16,
     borderWidth: 1,
     borderColor: BORDER,
     borderRadius: 12,
     padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
+    backgroundColor: WHITE,
   },
-  listTitle: { fontSize: 16, fontWeight: "900", color: TEXT },
-  listSub: { marginTop: 4, fontSize: 12, color: MUTED, fontWeight: "700" },
-  listValue: { marginLeft: 12, fontSize: 14, fontWeight: "900", color: PRIMARY_GREEN },
+  emptyText: { fontSize: 13, color: MUTED, fontWeight: "700" },
 });
