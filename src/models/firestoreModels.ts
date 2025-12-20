@@ -1,8 +1,8 @@
 // src/models/firestoreModels.ts
 
-export const SHOP_ID = 'minha-barraca';
+export const SHOP_ID = "minha-barraca";
 
-export type UnitType = 'unidade' | 'porção' | 'kg';
+export type UnitType = "unidade" | "porcao" | "kg";
 
 export interface Product {
   id: string;
@@ -20,8 +20,8 @@ export interface AttendantHistoryItem {
   to: Date | null;
 }
 
-export type OrderStatus = 'open' | 'closed';
-export type PaymentMethod = 'pix' | 'card' | 'cash';
+export type OrderStatus = "open" | "closed";
+export type PaymentMethod = "pix" | "card" | "cash";
 
 export interface Order {
   id: string;
@@ -34,6 +34,7 @@ export interface Order {
   closedAt: Date | null;
   closedDate: string | null;
   paymentMethod: PaymentMethod | null;
+  closedBy: string | null;
   total: number;
 }
 

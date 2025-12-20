@@ -10,6 +10,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,13 +33,9 @@ const STORAGE_KEYS = {
 export default function ComandasScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const { comandas, seedIfEmpty, createComanda } = useComandas();
+  const { comandas, createComanda } = useComandas();
 
   const [attendantName, setAttendantName] = useState('Atendente');
-
-  useEffect(() => {
-    seedIfEmpty();
-  }, [seedIfEmpty]);
 
   useEffect(() => {
     let alive = true;
@@ -66,7 +63,7 @@ export default function ComandasScreen() {
   const openComandas = useMemo(() => {
     const s = search.trim().toLowerCase();
     return (comandas || [])
-      .filter((c) => c.status === 'OPEN')
+      .filter((c) => c.status === 'open')
       .filter((c) => !s || (c.nickname || '').toLowerCase().includes(s));
   }, [comandas, search]);
 
@@ -74,10 +71,14 @@ export default function ComandasScreen() {
     navigation.navigate('ComandaDetalhe', { id, nickname: nick });
   };
 
-  const onCreate = () => {
-    createComanda(nickname.trim(), attendantName);
-    setCreateOpen(false);
-    setNickname('');
+  const onCreate = async () => {
+    try {
+      await createComanda(nickname.trim(), attendantName);
+      setCreateOpen(false);
+      setNickname('');
+    } catch {
+      Alert.alert('Erro', 'Nao foi possivel criar a comanda.');
+    }
   };
 
   return (

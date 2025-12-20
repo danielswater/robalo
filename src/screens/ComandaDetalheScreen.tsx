@@ -1,5 +1,5 @@
 // src/screens/ComandaDetalheScreen.tsx
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -10,29 +10,30 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-} from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+} from "react-native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
-import { PaymentMethod, useComandas } from '../context/ComandaContext';
-import { USERS_MOCK } from '../data/mockUsers';
+import { useComandas } from "../context/ComandaContext";
+import type { PaymentMethod } from "../models/firestoreModels";
+import { USERS_MOCK } from "../data/mockUsers";
 
 type RouteParams = { id: string; nickname: string };
 
-const PRIMARY_GREEN = '#2E7D32';
-const SECONDARY_BLUE = '#1976D2';
-const BORDER = '#E0E0E0';
-const BG = '#F5F5F5';
-const WHITE = '#FFFFFF';
-const TEXT = '#212121';
-const MUTED = '#757575';
-const ERROR_RED = '#D32F2F';
+const PRIMARY_GREEN = "#2E7D32";
+const SECONDARY_BLUE = "#1976D2";
+const BORDER = "#E0E0E0";
+const BG = "#F5F5F5";
+const WHITE = "#FFFFFF";
+const TEXT = "#212121";
+const MUTED = "#757575";
+const ERROR_RED = "#D32F2F";
 
 function paymentLabel(p: PaymentMethod) {
-  if (p === 'CASH') return 'Dinheiro';
-  if (p === 'CARD') return 'Cartão';
-  return 'Pix';
+  if (p === "cash") return "Dinheiro";
+  if (p === "card") return "Cartao";
+  return "Pix";
 }
 
 export default function ComandaDetalheScreen() {
@@ -42,7 +43,7 @@ export default function ComandaDetalheScreen() {
 
   const params = (route.params || {}) as RouteParams;
   const comandaId = params.id;
-  const nickname = params.nickname || 'Comanda';
+  const nickname = params.nickname || "Comanda";
 
   const {
     getComandaById,
@@ -53,6 +54,7 @@ export default function ComandaDetalheScreen() {
     closeComanda,
     changeAttendant,
     cancelEmptyComanda,
+    subscribeToComandaItems,
   } = useComandas();
 
   const comanda = getComandaById(comandaId);
@@ -60,14 +62,20 @@ export default function ComandaDetalheScreen() {
   const closed = isComandaClosed(comandaId);
   const items = useMemo(() => comanda?.items ?? [], [comanda]);
 
+  useEffect(() => {
+    if (!comandaId) return;
+    const unsub = subscribeToComandaItems(comandaId);
+    return () => unsub();
+  }, [comandaId]);
+
   // editar item
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState('');
-  const [qtyText, setQtyText] = useState('1');
+  const [editingName, setEditingName] = useState("");
+  const [qtyText, setQtyText] = useState("1");
 
   // fechar comanda
   const [closing, setClosing] = useState(false);
-  const [payment, setPayment] = useState<PaymentMethod>('PIX');
+  const [payment, setPayment] = useState<PaymentMethod>("pix");
 
   // trocar atendente (modal por lista)
   const [attModal, setAttModal] = useState(false);
@@ -79,7 +87,7 @@ export default function ComandaDetalheScreen() {
 
   const openEdit = (itemId: string, name: string, qty: number) => {
     if (closed) {
-      Alert.alert('Comanda fechada', 'Essa comanda já foi fechada. Não dá pra editar.');
+      Alert.alert("Comanda fechada", "Essa comanda ja foi fechada. Nao da pra editar.");
       return;
     }
     setEditingItemId(itemId);
@@ -89,35 +97,35 @@ export default function ComandaDetalheScreen() {
 
   const closeEdit = () => {
     setEditingItemId(null);
-    setEditingName('');
-    setQtyText('1');
+    setEditingName("");
+    setQtyText("1");
   };
 
   const parseQty = () => {
-    const onlyDigits = qtyText.replace(/[^\d]/g, '');
+    const onlyDigits = qtyText.replace(/[^\d]/g, "");
     const n = Number(onlyDigits);
     if (!Number.isFinite(n) || n <= 0) return 1;
     return Math.max(1, Math.round(n));
   };
 
-  const saveQty = () => {
+  const saveQty = async () => {
     if (!editingItemId) return;
-    const ok = updateItemQty(comandaId, editingItemId, parseQty());
-    if (!ok) Alert.alert('Comanda fechada', 'Não dá pra editar itens depois de fechar.');
+    const ok = await updateItemQty(comandaId, editingItemId, parseQty());
+    if (!ok) Alert.alert("Comanda fechada", "Nao da pra editar itens depois de fechar.");
     closeEdit();
   };
 
   const onLongPressItem = (itemId: string, name: string) => {
     if (closed) return;
 
-    Alert.alert('Remover item', `Remover "${name}" da comanda?`, [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert("Remover item", `Remover "${name}" da comanda?`, [
+      { text: "Cancelar", style: "cancel" },
       {
-        text: 'Remover',
-        style: 'destructive',
-        onPress: () => {
-          const ok = removeItemFromComanda(comandaId, itemId);
-          if (!ok) Alert.alert('Comanda fechada', 'Não dá pra remover itens depois de fechar.');
+        text: "Remover",
+        style: "destructive",
+        onPress: async () => {
+          const ok = await removeItemFromComanda(comandaId, itemId);
+          if (!ok) Alert.alert("Comanda fechada", "Nao da pra remover itens depois de fechar.");
         },
       },
     ]);
@@ -126,29 +134,29 @@ export default function ComandaDetalheScreen() {
   const openClose = () => {
     if (closed) return;
     if (items.length === 0) {
-      Alert.alert('Sem itens', 'Adicione pelo menos 1 item antes de fechar.');
+      Alert.alert("Sem itens", "Adicione pelo menos 1 item antes de fechar.");
       return;
     }
-    setPayment('PIX');
+    setPayment("pix");
     setClosing(true);
   };
 
   const confirmClose = () => {
-    Alert.alert('Fechar comanda', `Confirmar fechamento no ${paymentLabel(payment)}?`, [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert("Fechar comanda", `Confirmar fechamento no ${paymentLabel(payment)}?`, [
+      { text: "Cancelar", style: "cancel" },
       {
-        text: 'Confirmar',
-        onPress: () => {
-          const ok = closeComanda(comandaId, payment);
+        text: "Confirmar",
+        onPress: async () => {
+          const ok = await closeComanda(comandaId, payment);
           setClosing(false);
 
           if (!ok) {
-            Alert.alert('Ops', 'Essa comanda já estava fechada.');
+            Alert.alert("Ops", "Essa comanda ja estava fechada.");
             return;
           }
 
-          Alert.alert('Comanda fechada', `Pagamento: ${paymentLabel(payment)}`, [
-            { text: 'OK', onPress: () => navigation.goBack() },
+          Alert.alert("Comanda fechada", `Pagamento: ${paymentLabel(payment)}`, [
+            { text: "OK", onPress: () => navigation.goBack() },
           ]);
         },
       },
@@ -157,65 +165,65 @@ export default function ComandaDetalheScreen() {
 
   const openTrocarAtendente = () => {
     if (closed) {
-      Alert.alert('Comanda fechada', 'Essa comanda já foi fechada. Não dá pra trocar atendente.');
+      Alert.alert("Comanda fechada", "Essa comanda ja foi fechada. Nao da pra trocar atendente.");
       return;
     }
 
     if (activeUsers.length === 0) {
-      Alert.alert('Sem usuários', 'Não há usuários ativos cadastrados.');
+      Alert.alert("Sem usuarios", "Nao ha usuarios ativos cadastrados.");
       return;
     }
 
     setAttModal(true);
   };
 
-  const pickAttendant = (name: string) => {
-    const next = (name || '').trim();
+  const pickAttendant = async (name: string) => {
+    const next = (name || "").trim();
     if (!next || next.length < 2) return;
 
-    if ((comanda?.currentAttendant || '').trim() === next) {
+    if ((comanda?.currentAttendant || "").trim() === next) {
       setAttModal(false);
       return;
     }
 
-    const ok = changeAttendant(comandaId, next);
+    const ok = await changeAttendant(comandaId, next);
 
     if (!ok) {
-      Alert.alert('Erro', 'Não consegui trocar o atendente.');
+      Alert.alert("Erro", "Nao consegui trocar o atendente.");
       return;
     }
 
     setAttModal(false);
-    Alert.alert('Pronto', `Agora o atendente é: ${next}`);
+    Alert.alert("Pronto", `Agora o atendente e: ${next}`);
   };
 
   const confirmCancelarComandaVazia = () => {
     if (closed) return;
     if (items.length > 0) {
-      Alert.alert('Não dá', 'Essa comanda já tem itens. Só pode fechar, não cancelar.');
+      Alert.alert("Nao da", "Essa comanda ja tem itens. So pode fechar, nao cancelar.");
       return;
     }
 
-    Alert.alert('Cancelar comanda', 'Essa comanda está vazia. Quer cancelar/excluir?', [
-      { text: 'Não', style: 'cancel' },
+    Alert.alert("Cancelar comanda", "Essa comanda esta vazia. Quer cancelar/excluir?", [
+      { text: "Nao", style: "cancel" },
       {
-        text: 'Sim, cancelar',
-        style: 'destructive',
-        onPress: () => {
-          const ok = cancelEmptyComanda(comandaId);
+        text: "Sim, cancelar",
+        style: "destructive",
+        onPress: async () => {
+          const ok = await cancelEmptyComanda(comandaId);
           if (!ok) {
-            Alert.alert('Ops', 'Não consegui cancelar. Tente de novo.');
+            Alert.alert("Ops", "Nao consegui cancelar. Tente de novo.");
             return;
           }
-          Alert.alert('Cancelada', 'Comanda vazia cancelada.', [
-            { text: 'OK', onPress: () => navigation.goBack() },
+          Alert.alert("Cancelada", "Comanda vazia cancelada.", [
+            { text: "OK", onPress: () => navigation.goBack() },
           ]);
         },
       },
     ]);
   };
 
-  const currentAtt = (comanda?.currentAttendant || '—').trim() || '—';
+  const currentAtt = (comanda?.currentAttendant || "-").trim() || "-";
 
   return (
     <View style={styles.container}>
@@ -228,7 +236,7 @@ export default function ComandaDetalheScreen() {
           <Text style={styles.title}>{nickname}</Text>
 
           <View style={styles.subRow}>
-            <Text style={styles.subTitle}>{closed ? 'Comanda fechada' : 'Comanda aberta'}</Text>
+            <Text style={styles.subTitle}>{closed ? "Comanda fechada" : "Comanda aberta"}</Text>
 
             {closed && (comanda as any)?.paymentMethod ? (
               <View style={styles.badge}>
@@ -279,7 +287,7 @@ export default function ComandaDetalheScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.itemName}>{item.name}</Text>
                     <Text style={styles.itemSub}>
-                      {item.qty}x • R$ {Number(item.price).toFixed(2)}
+                      {item.qty}x - R$ {Number(item.price).toFixed(2)}
                     </Text>
                   </View>
                   <Text style={styles.itemTotal}>R$ {(Number(item.price) * Number(item.qty)).toFixed(2)}</Text>
@@ -290,7 +298,7 @@ export default function ComandaDetalheScreen() {
         )}
 
         {closed ? (
-          <Text style={[styles.muted, { marginTop: 12 }]}>Essa comanda está travada.</Text>
+          <Text style={[styles.muted, { marginTop: 12 }]}>Essa comanda esta travada.</Text>
         ) : (
           <Text style={[styles.muted, { marginTop: 12 }]}>Toque no item para editar. Segure para remover.</Text>
         )}
@@ -306,7 +314,7 @@ export default function ComandaDetalheScreen() {
           style={[styles.primaryBtn, closed && styles.btnDisabled]}
           disabled={closed}
           onPress={() =>
-            navigation.navigate('ComandaAdicionarItem', {
+            navigation.navigate("ComandaAdicionarItem", {
               id: comandaId,
               nickname,
             })
@@ -334,29 +342,29 @@ export default function ComandaDetalheScreen() {
 
       {/* Modal fechar comanda */}
       <Modal transparent visible={closing} animationType="fade" onRequestClose={() => setClosing(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Fechar comanda</Text>
             <Text style={styles.modalSub}>Escolha a forma de pagamento</Text>
 
             <View style={{ gap: 10 }}>
               <TouchableOpacity
-                style={[styles.payOption, payment === 'PIX' && styles.payOptionSelected]}
-                onPress={() => setPayment('PIX')}
+                style={[styles.payOption, payment === "pix" && styles.payOptionSelected]}
+                onPress={() => setPayment("pix")}
               >
                 <Text style={styles.payOptionText}>Pix</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.payOption, payment === 'CARD' && styles.payOptionSelected]}
-                onPress={() => setPayment('CARD')}
+                style={[styles.payOption, payment === "card" && styles.payOptionSelected]}
+                onPress={() => setPayment("card")}
               >
-                <Text style={styles.payOptionText}>Cartão</Text>
+                <Text style={styles.payOptionText}>Cartao</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.payOption, payment === 'CASH' && styles.payOptionSelected]}
-                onPress={() => setPayment('CASH')}
+                style={[styles.payOption, payment === "cash" && styles.payOptionSelected]}
+                onPress={() => setPayment("cash")}
               >
                 <Text style={styles.payOptionText}>Dinheiro</Text>
               </TouchableOpacity>
@@ -375,9 +383,9 @@ export default function ComandaDetalheScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Modal trocar atendente (SEM PIN, SEM DIGITAR) */}
+      {/* Modal trocar atendente */}
       <Modal transparent visible={attModal} animationType="fade" onRequestClose={() => setAttModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Trocar atendente</Text>
             <Text style={styles.modalSub}>Escolha o novo atendente</Text>
@@ -399,9 +407,9 @@ export default function ComandaDetalheScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Modal editar item (mantido simples, usando o fluxo já existente no seu projeto) */}
+      {/* Modal editar item */}
       <Modal transparent visible={!!editingItemId} animationType="fade" onRequestClose={closeEdit}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Editar item</Text>
             <Text style={styles.modalSub}>{editingName}</Text>
@@ -441,14 +449,14 @@ export default function ComandaDetalheScreen() {
               style={[styles.modalRemoveBtn, { marginTop: 12 }]}
               onPress={() => {
                 if (!editingItemId) return;
-                Alert.alert('Remover item', `Remover "${editingName}" da comanda?`, [
-                  { text: 'Cancelar', style: 'cancel' },
+                Alert.alert("Remover item", `Remover "${editingName}" da comanda?`, [
+                  { text: "Cancelar", style: "cancel" },
                   {
-                    text: 'Remover',
-                    style: 'destructive',
-                    onPress: () => {
-                      const ok = removeItemFromComanda(comandaId, editingItemId);
-                      if (!ok) Alert.alert('Comanda fechada', 'Não dá pra remover itens depois de fechar.');
+                    text: "Remover",
+                    style: "destructive",
+                    onPress: async () => {
+                      const ok = await removeItemFromComanda(comandaId, editingItemId);
+                      if (!ok) Alert.alert("Comanda fechada", "Nao da pra remover itens depois de fechar.");
                       closeEdit();
                     },
                   },
@@ -468,29 +476,29 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
 
   topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingBottom: 12,
     backgroundColor: WHITE,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: "#E0E0E0",
   },
   iconBtn: { paddingRight: 12, paddingVertical: 6 },
-  title: { fontSize: 18, fontWeight: '800', color: TEXT },
+  title: { fontSize: 18, fontWeight: "800", color: TEXT },
 
-  subRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 2 },
+  subRow: { flexDirection: "row", gap: 8, alignItems: "center", marginTop: 2 },
   subTitle: { fontSize: 12, color: MUTED },
 
   badge: {
     borderWidth: 1,
     borderColor: PRIMARY_GREEN,
-    backgroundColor: '#E8F5E9',
+    backgroundColor: "#E8F5E9",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 999,
   },
-  badgeText: { fontSize: 11, fontWeight: '800', color: PRIMARY_GREEN },
+  badgeText: { fontSize: 11, fontWeight: "800", color: PRIMARY_GREEN },
 
   box: {
     margin: 16,
@@ -502,13 +510,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  attRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  attLabel: { fontSize: 12, color: MUTED, fontWeight: '700' },
-  attValue: { marginTop: 2, fontSize: 16, color: TEXT, fontWeight: '800' },
+  attRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  attLabel: { fontSize: 12, color: MUTED, fontWeight: "700" },
+  attValue: { marginTop: 2, fontSize: 16, color: TEXT, fontWeight: "800" },
 
   attBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -517,76 +525,76 @@ const styles = StyleSheet.create({
     borderColor: SECONDARY_BLUE,
     backgroundColor: WHITE,
   },
-  attBtnText: { color: SECONDARY_BLUE, fontSize: 14, fontWeight: '900' },
+  attBtnText: { color: SECONDARY_BLUE, fontSize: 14, fontWeight: "800" },
 
-  divider: { height: 1, backgroundColor: '#EEEEEE', marginVertical: 12 },
+  divider: { height: 1, backgroundColor: "#EEEEEE", marginVertical: 12 },
 
-  sectionTitle: { fontSize: 14, fontWeight: '800', color: TEXT, marginBottom: 8 },
+  sectionTitle: { fontSize: 14, fontWeight: "800", color: TEXT, marginBottom: 8 },
   muted: { fontSize: 13, color: MUTED },
 
   itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#EEEEEE',
+    borderColor: "#EEEEEE",
     borderRadius: 12,
     padding: 12,
     backgroundColor: WHITE,
   },
   itemRowDisabled: { opacity: 0.7 },
-  itemName: { fontSize: 14, fontWeight: '800', color: TEXT },
+  itemName: { fontSize: 14, fontWeight: "800", color: TEXT },
   itemSub: { marginTop: 2, fontSize: 12, color: MUTED },
-  itemTotal: { marginLeft: 12, fontSize: 13, fontWeight: '800', color: PRIMARY_GREEN },
+  itemTotal: { marginLeft: 12, fontSize: 13, fontWeight: "800", color: PRIMARY_GREEN },
 
   footer: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
+    borderTopColor: "#E0E0E0",
     backgroundColor: WHITE,
   },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  totalLabel: { fontSize: 14, fontWeight: '700', color: TEXT },
-  totalValue: { fontSize: 14, fontWeight: '800', color: PRIMARY_GREEN },
+  totalRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
+  totalLabel: { fontSize: 14, fontWeight: "700", color: TEXT },
+  totalValue: { fontSize: 14, fontWeight: "800", color: PRIMARY_GREEN },
 
   primaryBtn: {
     backgroundColor: PRIMARY_GREEN,
     borderRadius: 12,
     paddingVertical: 12,
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 10,
   },
-  primaryBtnText: { color: WHITE, fontSize: 14, fontWeight: '800' },
+  primaryBtnText: { color: WHITE, fontSize: 14, fontWeight: "800" },
 
   secondaryBtn: {
     backgroundColor: WHITE,
     borderRadius: 12,
     paddingVertical: 12,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
     borderColor: PRIMARY_GREEN,
   },
-  secondaryBtnText: { color: PRIMARY_GREEN, fontSize: 14, fontWeight: '800' },
+  secondaryBtnText: { color: PRIMARY_GREEN, fontSize: 14, fontWeight: "800" },
 
   dangerBtn: {
     marginTop: 10,
     backgroundColor: WHITE,
     borderRadius: 12,
     paddingVertical: 12,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
     borderColor: ERROR_RED,
   },
-  dangerBtnText: { color: ERROR_RED, fontSize: 14, fontWeight: '900' },
+  dangerBtnText: { color: ERROR_RED, fontSize: 14, fontWeight: "900" },
 
   btnDisabled: { opacity: 0.5 },
-  btnDisabledOutline: { borderColor: '#BDBDBD' },
-  btnDisabledText: { color: '#9E9E9E' },
+  btnDisabledOutline: { borderColor: "#BDBDBD" },
+  btnDisabledText: { color: "#9E9E9E" },
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: "rgba(0,0,0,0.35)",
     padding: 18,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   modalCard: {
     backgroundColor: WHITE,
@@ -595,42 +603,42 @@ const styles = StyleSheet.create({
     borderColor: BORDER,
     padding: 14,
   },
-  modalTitle: { fontSize: 16, fontWeight: '900', color: TEXT },
+  modalTitle: { fontSize: 16, fontWeight: "900", color: TEXT },
   modalSub: { marginTop: 2, marginBottom: 12, fontSize: 13, color: MUTED },
 
-  modalLabel: { fontSize: 14, fontWeight: '700', color: TEXT, marginBottom: 8 },
+  modalLabel: { fontSize: 14, fontWeight: "700", color: TEXT, marginBottom: 8 },
 
-  modalButtonsRow: { flexDirection: 'row', gap: 10 },
+  modalButtonsRow: { flexDirection: "row", gap: 10 },
 
   modalBtnPrimary: {
     flex: 1,
     backgroundColor: PRIMARY_GREEN,
     borderRadius: 10,
     paddingVertical: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  modalBtnPrimaryText: { color: WHITE, fontSize: 14, fontWeight: '900' },
+  modalBtnPrimaryText: { color: WHITE, fontSize: 14, fontWeight: "900" },
 
   modalBtnSecondary: {
     flex: 1,
     backgroundColor: WHITE,
     borderRadius: 10,
     paddingVertical: 12,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
     borderColor: SECONDARY_BLUE,
   },
-  modalBtnSecondaryText: { color: SECONDARY_BLUE, fontSize: 14, fontWeight: '900' },
+  modalBtnSecondaryText: { color: SECONDARY_BLUE, fontSize: 14, fontWeight: "900" },
 
   modalRemoveBtn: {
     paddingVertical: 10,
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 10,
     borderWidth: 1,
     borderColor: ERROR_RED,
     backgroundColor: WHITE,
   },
-  modalRemoveText: { color: ERROR_RED, fontSize: 14, fontWeight: '900' },
+  modalRemoveText: { color: ERROR_RED, fontSize: 14, fontWeight: "900" },
 
   payOption: {
     borderWidth: 1,
@@ -639,10 +647,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     backgroundColor: WHITE,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  payOptionSelected: { borderColor: PRIMARY_GREEN, backgroundColor: '#E8F5E9' },
-  payOptionText: { fontSize: 14, fontWeight: '900', color: TEXT },
+  payOptionSelected: { borderColor: PRIMARY_GREEN, backgroundColor: "#E8F5E9" },
+  payOptionText: { fontSize: 14, fontWeight: "900", color: TEXT },
 
   userOption: {
     borderWidth: 1,
@@ -651,19 +659,19 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     backgroundColor: WHITE,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  userOptionText: { fontSize: 14, fontWeight: '900', color: TEXT },
+  userOptionText: { fontSize: 14, fontWeight: "900", color: TEXT },
 
   qtyRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     borderWidth: 1,
     borderColor: BORDER,
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
-  qtyBtn: { paddingHorizontal: 18, paddingVertical: 12, backgroundColor: '#FAFAFA' },
-  qtyBtnText: { fontSize: 16, fontWeight: '900', color: TEXT },
-  qtyMid: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: WHITE },
-  qtyMidText: { fontSize: 14, fontWeight: '900', color: TEXT },
+  qtyBtn: { paddingHorizontal: 18, paddingVertical: 12, backgroundColor: "#FAFAFA" },
+  qtyBtnText: { fontSize: 16, fontWeight: "900", color: TEXT },
+  qtyMid: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: WHITE },
+  qtyMidText: { fontSize: 14, fontWeight: "900", color: TEXT },
 });
