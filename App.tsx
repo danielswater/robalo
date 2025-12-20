@@ -17,7 +17,8 @@ import ComandaAdicionarItemScreen from './src/screens/ComandaAdicionarItemScreen
 
 import AppHeaderTitle from './src/components/AppHeaderTitle';
 import { ComandaProvider } from './src/context/ComandaContext';
-import AppSplash from './src/components/AppSplash';
+import AppSplash from './src/components/appsplash';
+
 import { ensureAnonAuth } from './src/firebase';
 import { releaseAttendantSession } from './src/services/attendantSessions';
 
@@ -137,7 +138,7 @@ export default function App() {
 
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 700);
-    ensureAnonAuth().catch(() => {});
+    ensureAnonAuth().catch(() => { });
 
     return () => {
       clearTimeout(timer);
