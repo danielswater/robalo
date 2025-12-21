@@ -20,7 +20,6 @@ import { ComandaProvider } from './src/context/ComandaContext';
 import AppSplash from './src/components/appsplash';
 
 import { ensureAnonAuth } from './src/firebase';
-import { releaseAttendantSession, touchAttendantSession } from './src/services/attendantSessions';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -34,30 +33,6 @@ const STORAGE_KEYS = {
 
 function MainTabs() {
   const [loggingOut, setLoggingOut] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    let timer: ReturnType<typeof setInterval> | null = null;
-
-    async function startHeartbeat() {
-      const savedId = await AsyncStorage.getItem(STORAGE_KEYS.attendantId);
-      if (!savedId || !alive) return;
-
-      const tick = () => {
-        touchAttendantSession(savedId).catch(() => { });
-      };
-
-      tick();
-      timer = setInterval(tick, 5 * 60 * 1000);
-    }
-
-    startHeartbeat();
-
-    return () => {
-      alive = false;
-      if (timer) clearInterval(timer);
-    };
-  }, []);
 
   return (
     <Tab.Navigator
@@ -83,23 +58,6 @@ function MainTabs() {
               if (loggingOut) return;
               try {
                 setLoggingOut(true);
-                const savedId = await AsyncStorage.getItem(STORAGE_KEYS.attendantId);
-                if (savedId) {
-                  const release = await releaseAttendantSession(savedId);
-                  if (!release.ok) {
-                    if (release.reason === 'offline') {
-                      Alert.alert('Sem conexao', 'Conecte na internet para sair.');
-                      setLoggingOut(false);
-                      return;
-                    }
-                    if (release.reason === 'error') {
-                      Alert.alert('Erro', 'Nao consegui liberar o login. Tente de novo.');
-                      setLoggingOut(false);
-                      return;
-                    }
-                  }
-                }
-
                 await AsyncStorage.multiRemove([
                   STORAGE_KEYS.attendantName,
                   STORAGE_KEYS.attendantId,

@@ -15,7 +15,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
 import { USERS_MOCK } from "../data/mockUsers";
-import { claimAttendantSession, validateAttendantSession } from "../services/attendantSessions";
 
 const PRIMARY_GREEN = "#2E7D32";
 const BG = "#FAFAFA";
@@ -64,20 +63,8 @@ export default function LoginScreen() {
         const savedId = await AsyncStorage.getItem(STORAGE_KEYS.attendantId);
 
         if (savedName && savedName.trim().length >= 2 && savedId) {
-          const result = await validateAttendantSession(savedId);
-
-          if (result.ok) {
-            navigation.reset({ index: 0, routes: [{ name: "MainTabs" }] });
-            return;
-          }
-
-          await AsyncStorage.multiRemove([STORAGE_KEYS.attendantName, STORAGE_KEYS.attendantId]);
-
-          if (result.reason === "offline") {
-            setError("Sem conexao. Conecte na internet para entrar.");
-          } else if (result.reason === "in-use") {
-            setError("Esse atendente ja esta logado em outro celular.");
-          }
+          navigation.reset({ index: 0, routes: [{ name: "MainTabs" }] });
+          return;
         } else if (savedName || savedId) {
           await AsyncStorage.multiRemove([STORAGE_KEYS.attendantName, STORAGE_KEYS.attendantId]);
         }
@@ -126,20 +113,6 @@ export default function LoginScreen() {
 
     try {
       setLoggingIn(true);
-      const lock = await claimAttendantSession(selectedUser.id, selectedUser.name);
-      if (!lock.ok) {
-        if (lock.reason === "in-use") {
-          setError("Esse atendente ja esta logado em outro celular.");
-          return;
-        }
-        if (lock.reason === "offline") {
-          setError("Sem conexao. Conecte na internet para entrar.");
-          return;
-        }
-        setError("Nao consegui validar o login. Tente de novo.");
-        return;
-      }
-
       await AsyncStorage.multiSet([
         [STORAGE_KEYS.attendantName, selectedUser.name],
         [STORAGE_KEYS.attendantId, selectedUser.id],
