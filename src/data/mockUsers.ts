@@ -14,4 +14,5 @@ export const USERS_MOCK: AppUser[] = [
   { id: 'u3', name: 'Ícaro', pin: '1234', active: true },
   { id: 'u4', name: 'Jessika', pin: '1234', active: true },
   { id: 'u5', name: 'Kamylli', pin: '1234', active: true },
+  { id: 'u6', name: 'Daniel', pin: '1234', active: true },
 ];
