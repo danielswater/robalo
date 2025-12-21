@@ -163,6 +163,7 @@ export default function ComandaDetalheScreen() {
   };
 
   const confirmClose = () => {
+    setClosing(false);
     show("Fechar comanda", `Confirmar fechamento no ${paymentLabel(payment)}?`, [
       { text: "Cancelar", style: "cancel" },
       {
@@ -175,7 +176,6 @@ export default function ComandaDetalheScreen() {
           } finally {
             setBusy(false);
           }
-          setClosing(false);
 
           if (!ok) {
             show("Ops", "Essa comanda ja estava fechada.");
