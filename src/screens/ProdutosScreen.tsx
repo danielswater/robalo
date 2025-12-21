@@ -6,7 +6,6 @@ import {
   FlatList,
   TextInput,
   TouchableOpacity,
-  Alert,
   Modal,
   KeyboardAvoidingView,
   Platform,
@@ -20,6 +19,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import type { Product, UnitType } from "../models/firestoreModels";
 import { SHOP_ID } from "../models/firestoreModels";
 import { productsRepo } from "../services/repos";
+import { useAppAlert } from "../components/AppAlert";
 
 const PRIMARY_GREEN = "#2E7D32";
 const SECONDARY_BLUE = "#1976D2";
@@ -59,6 +59,7 @@ export default function ProdutosScreen() {
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const { show } = useAppAlert();
 
   const loadProducts = useCallback(async (aliveRef?: { current: boolean }) => {
     try {
@@ -104,7 +105,7 @@ export default function ProdutosScreen() {
       await productsRepo.update(id, { active: !active });
       await loadProducts();
     } catch {
-      Alert.alert("Erro", "Nao foi possivel atualizar o produto.");
+      show("Erro", "Nao foi possivel atualizar o produto.");
     } finally {
       setTogglingId(null);
     }
@@ -142,13 +143,13 @@ export default function ProdutosScreen() {
     if (saving) return;
     const name = newName.trim();
     if (name.length < 2) {
-      Alert.alert("Nome invalido", "Digite o nome do produto.");
+      show("Nome invalido", "Digite o nome do produto.");
       return;
     }
 
     const price = moneyInputToNumber(priceInput);
     if (!Number.isFinite(price) || price <= 0) {
-      Alert.alert("Preco invalido", "Digite um preco valido.");
+      show("Preco invalido", "Digite um preco valido.");
       return;
     }
 
@@ -176,7 +177,7 @@ export default function ProdutosScreen() {
       setModalOpen(false);
     } catch (error: any) {
       const msg = String(error?.message || error || "Nao foi possivel salvar o produto.");
-      Alert.alert("Erro", msg);
+      show("Erro", msg);
     } finally {
       setSaving(false);
     }

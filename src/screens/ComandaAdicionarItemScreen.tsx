@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, Alert, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, ActivityIndicator } from "react-native";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { Product, UnitType } from "../models/firestoreModels";
 import { productsRepo } from "../services/repos";
 import { useComandas } from "../context/ComandaContext";
+import { useAppAlert } from "../components/AppAlert";
 
 type RouteParams = {
   id: string; // comandaId
@@ -38,6 +39,7 @@ function formatQtyDisplay(qty: number) {
 
 export default function ComandaAdicionarItemScreen() {
   const navigation = useNavigation<any>();
+  const { show } = useAppAlert();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
 
@@ -150,7 +152,7 @@ export default function ComandaAdicionarItemScreen() {
 
       setQtyByProduct({});
       if (failed) {
-        Alert.alert("Atualizando...", "Tente de novo.");
+        show("Atualizando...", "Tente de novo.");
       } else {
         navigation.popToTop();
       }

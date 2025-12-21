@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   FlatList,
   Modal,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
@@ -19,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useComandas } from "../context/ComandaContext";
 import type { PaymentMethod } from "../models/firestoreModels";
 import { USERS_MOCK } from "../data/mockUsers";
+import { useAppAlert } from "../components/AppAlert";
 
 type RouteParams = { id: string; nickname: string };
 
@@ -41,6 +41,7 @@ export default function ComandaDetalheScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
+  const { show } = useAppAlert();
 
   const params = (route.params || {}) as RouteParams;
   const comandaId = params.id;
@@ -89,7 +90,7 @@ export default function ComandaDetalheScreen() {
 
   const openEdit = (itemId: string, name: string, qty: number) => {
     if (closed) {
-      Alert.alert("Comanda fechada", "Essa comanda ja foi fechada. Nao da pra editar.");
+      show("Comanda fechada", "Essa comanda ja foi fechada. Nao da pra editar.");
       return;
     }
     setEditingItemId(itemId);
@@ -120,8 +121,8 @@ export default function ComandaDetalheScreen() {
       setBusy(false);
     }
     if (!ok) {
-      if (closed) Alert.alert("Comanda fechada", "Nao da pra editar itens depois de fechar.");
-      else Alert.alert("Atualizando...", "Tente de novo.");
+      if (closed) show("Comanda fechada", "Nao da pra editar itens depois de fechar.");
+      else show("Atualizando...", "Tente de novo.");
     }
     closeEdit();
   };
@@ -129,7 +130,7 @@ export default function ComandaDetalheScreen() {
   const onLongPressItem = (itemId: string, name: string) => {
     if (closed) return;
 
-    Alert.alert("Remover item", `Remover "${name}" da comanda?`, [
+    show("Remover item", `Remover "${name}" da comanda?`, [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Remover",
@@ -143,8 +144,8 @@ export default function ComandaDetalheScreen() {
             setBusy(false);
           }
           if (!ok) {
-            if (closed) Alert.alert("Comanda fechada", "Nao da pra remover itens depois de fechar.");
-            else Alert.alert("Atualizando...", "Tente de novo.");
+            if (closed) show("Comanda fechada", "Nao da pra remover itens depois de fechar.");
+            else show("Atualizando...", "Tente de novo.");
           }
         },
       },
@@ -154,7 +155,7 @@ export default function ComandaDetalheScreen() {
   const openClose = () => {
     if (closed) return;
     if (items.length === 0) {
-      Alert.alert("Sem itens", "Adicione pelo menos 1 item antes de fechar.");
+      show("Sem itens", "Adicione pelo menos 1 item antes de fechar.");
       return;
     }
     setPayment("pix");
@@ -162,7 +163,7 @@ export default function ComandaDetalheScreen() {
   };
 
   const confirmClose = () => {
-    Alert.alert("Fechar comanda", `Confirmar fechamento no ${paymentLabel(payment)}?`, [
+    show("Fechar comanda", `Confirmar fechamento no ${paymentLabel(payment)}?`, [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Confirmar",
@@ -177,11 +178,11 @@ export default function ComandaDetalheScreen() {
           setClosing(false);
 
           if (!ok) {
-            Alert.alert("Ops", "Essa comanda ja estava fechada.");
+            show("Ops", "Essa comanda ja estava fechada.");
             return;
           }
 
-          Alert.alert("Comanda fechada", `Pagamento: ${paymentLabel(payment)}`, [
+          show("Comanda fechada", `Pagamento: ${paymentLabel(payment)}`, [
             { text: "OK", onPress: () => navigation.goBack() },
           ]);
         },
@@ -191,12 +192,12 @@ export default function ComandaDetalheScreen() {
 
   const openTrocarAtendente = () => {
     if (closed) {
-      Alert.alert("Comanda fechada", "Essa comanda ja foi fechada. Nao da pra trocar atendente.");
+      show("Comanda fechada", "Essa comanda ja foi fechada. Nao da pra trocar atendente.");
       return;
     }
 
     if (activeUsers.length === 0) {
-      Alert.alert("Sem usuarios", "Nao ha usuarios ativos cadastrados.");
+      show("Sem usuarios", "Nao ha usuarios ativos cadastrados.");
       return;
     }
 
@@ -221,22 +222,22 @@ export default function ComandaDetalheScreen() {
     }
 
     if (!ok) {
-      Alert.alert("Erro", "Nao consegui trocar o atendente.");
+      show("Erro", "Nao consegui trocar o atendente.");
       return;
     }
 
     setAttModal(false);
-    Alert.alert("Pronto", `Agora o atendente e: ${next}`);
+    show("Pronto", `Agora o atendente e: ${next}`);
   };
 
   const confirmCancelarComandaVazia = () => {
     if (closed) return;
     if (items.length > 0) {
-      Alert.alert("Nao da", "Essa comanda ja tem itens. So pode fechar, nao cancelar.");
+      show("Nao da", "Essa comanda ja tem itens. So pode fechar, nao cancelar.");
       return;
     }
 
-    Alert.alert("Cancelar comanda", "Essa comanda esta vazia. Quer cancelar/excluir?", [
+    show("Cancelar comanda", "Essa comanda esta vazia. Quer cancelar/excluir?", [
       { text: "Nao", style: "cancel" },
       {
         text: "Sim, cancelar",
@@ -250,10 +251,10 @@ export default function ComandaDetalheScreen() {
             setBusy(false);
           }
           if (!ok) {
-            Alert.alert("Ops", "Nao consegui cancelar. Tente de novo.");
+            show("Ops", "Nao consegui cancelar. Tente de novo.");
             return;
           }
-          Alert.alert("Cancelada", "Comanda vazia cancelada.", [
+          show("Cancelada", "Comanda vazia cancelada.", [
             { text: "OK", onPress: () => navigation.goBack() },
           ]);
         },
@@ -489,7 +490,7 @@ export default function ComandaDetalheScreen() {
               style={[styles.modalRemoveBtn, { marginTop: 12 }]}
               onPress={() => {
                 if (!editingItemId) return;
-                Alert.alert("Remover item", `Remover "${editingName}" da comanda?`, [
+                show("Remover item", `Remover "${editingName}" da comanda?`, [
                   { text: "Cancelar", style: "cancel" },
                   {
                     text: "Remover",
@@ -503,8 +504,8 @@ export default function ComandaDetalheScreen() {
                         setBusy(false);
                       }
                       if (!ok) {
-                        if (closed) Alert.alert("Comanda fechada", "Nao da pra remover itens depois de fechar.");
-                        else Alert.alert("Atualizando...", "Tente de novo.");
+                        if (closed) show("Comanda fechada", "Nao da pra remover itens depois de fechar.");
+                        else show("Atualizando...", "Tente de novo.");
                       }
                       closeEdit();
                     },

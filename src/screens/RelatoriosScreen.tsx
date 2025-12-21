@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from "react";
-import { Alert, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from "react-native";
+import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useComandas } from "../context/ComandaContext";
 import type { PaymentMethod } from "../models/firestoreModels";
+import { useAppAlert } from "../components/AppAlert";
 
 const PRIMARY_GREEN = "#2E7D32";
 const SECONDARY_BLUE = "#1976D2";
@@ -91,6 +92,7 @@ export default function RelatoriosScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { comandas, ordersLoading } = useComandas();
+  const { show } = useAppAlert();
 
   const [mode, setMode] = useState<Mode>("today");
   const [startInput, setStartInput] = useState("");
@@ -175,12 +177,12 @@ export default function RelatoriosScreen() {
     const end = parseDatePtBR(endInput);
 
     if (!start || !end) {
-      Alert.alert("Periodo invalido", "Digite as duas datas no formato dd/mm/aaaa.");
+      show("Periodo invalido", "Digite as duas datas no formato dd/mm/aaaa.");
       return;
     }
 
     if (end < start) {
-      Alert.alert("Periodo invalido", "A data final precisa ser maior ou igual a inicial.");
+      show("Periodo invalido", "A data final precisa ser maior ou igual a inicial.");
       return;
     }
 

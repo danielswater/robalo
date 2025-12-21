@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { NavigationContainer } from '@react-navigation/native';
@@ -16,6 +16,7 @@ import ComandaDetalheScreen from './src/screens/ComandaDetalheScreen';
 import ComandaAdicionarItemScreen from './src/screens/ComandaAdicionarItemScreen';
 
 import AppHeaderTitle from './src/components/AppHeaderTitle';
+import { AlertProvider, useAppAlert } from './src/components/AppAlert';
 import { ComandaProvider } from './src/context/ComandaContext';
 import AppSplash from './src/components/appsplash';
 
@@ -33,6 +34,7 @@ const STORAGE_KEYS = {
 
 function MainTabs() {
   const [loggingOut, setLoggingOut] = useState(false);
+  const { show } = useAppAlert();
 
   return (
     <Tab.Navigator
@@ -69,7 +71,7 @@ function MainTabs() {
                   routes: [{ name: 'Login' }],
                 });
               } catch (e) {
-                Alert.alert('Erro', 'Nao consegui trocar o atendente.');
+                show('Erro', 'Nao consegui trocar o atendente.');
                 setLoggingOut(false);
               }
             }}
@@ -133,7 +135,8 @@ export default function App() {
 
   return (
     <ComandaProvider>
-      <NavigationContainer>
+      <AlertProvider>
+        <NavigationContainer>
         <Stack.Navigator>
           <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
           <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
@@ -150,7 +153,8 @@ export default function App() {
             options={{ headerShown: false }}
           />
         </Stack.Navigator>
-      </NavigationContainer>
+        </NavigationContainer>
+      </AlertProvider>
     </ComandaProvider>
   );
 }

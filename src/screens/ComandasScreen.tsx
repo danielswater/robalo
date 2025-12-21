@@ -10,7 +10,6 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   ActivityIndicator,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
@@ -18,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useComandas } from "../context/ComandaContext";
+import { useAppAlert } from "../components/AppAlert";
 
 const PRIMARY_GREEN = "#2E7D32";
 const SECONDARY_BLUE = "#1976D2";
@@ -50,6 +50,7 @@ export default function ComandasScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { comandas, createComanda, ordersError, ordersLoading, reloadOrders } = useComandas();
+  const { show } = useAppAlert();
 
   const [attendantName, setAttendantName] = useState("Atendente");
 
@@ -95,7 +96,7 @@ export default function ComandasScreen() {
       (c) => c.status === "open" && normalizeName(c.nickname || "") === normalizeName(nextName)
     );
     if (hasDuplicate) {
-      Alert.alert("Nome ja existe", "Ja existe uma comanda aberta com esse nome. Use outro apelido.");
+      show("Nome ja existe", "Ja existe uma comanda aberta com esse nome. Use outro apelido.");
       return;
     }
 
@@ -106,7 +107,7 @@ export default function ComandasScreen() {
       setCreateOpen(false);
       setNickname("");
     } catch {
-      Alert.alert("Erro", "Nao foi possivel criar a comanda.");
+      show("Erro", "Nao foi possivel criar a comanda.");
     } finally {
       setCreating(false);
     }
