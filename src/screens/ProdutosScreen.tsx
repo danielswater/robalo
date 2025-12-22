@@ -302,7 +302,7 @@ export default function ProdutosScreen() {
               style={styles.modalInput}
             />
 
-            <Text style={styles.modalLabel}>Preco</Text>
+            <Text style={styles.modalLabel}>Preço</Text>
             <TextInput
               value={priceInput}
               onChangeText={(v) => setPriceInput(formatMoneyInput(v))}

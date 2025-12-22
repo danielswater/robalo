@@ -177,12 +177,12 @@ export default function RelatoriosScreen() {
     const end = parseDatePtBR(endInput);
 
     if (!start || !end) {
-      show("Periodo invalido", "Digite as duas datas no formato dd/mm/aaaa.");
+      show("Período invalido", "Digite as duas datas no formato dd/mm/aaaa.");
       return;
     }
 
     if (end < start) {
-      show("Periodo invalido", "A data final precisa ser maior ou igual a inicial.");
+      show("Período invalido", "A data final precisa ser maior ou igual a inicial.");
       return;
     }
 
@@ -197,13 +197,13 @@ export default function RelatoriosScreen() {
     setAppliedEnd(null);
   };
 
-  const periodText = range ? `Periodo: ${range.label}` : `Escolha um periodo e toque em "Aplicar".`;
+  const periodText = range ? `Período: ${range.label}` : `Escolha um período e toque em "Aplicar".`;
   const countText = `${closedInRange.length} comanda(s)`;
 
   const emptyMessage =
     mode === "period" && !range
-      ? 'Escolha um periodo e toque em "Aplicar".'
-      : "Nenhuma comanda fechada nesse periodo.";
+      ? 'Escolha um período e toque em "Aplicar".'
+      : "Nenhuma comanda fechada nesse período.";
 
   return (
     <FlatList
@@ -225,13 +225,13 @@ export default function RelatoriosScreen() {
               style={[styles.segmentBtn, mode === "period" && styles.segmentBtnActive]}
               onPress={() => setMode("period")}
             >
-              <Text style={[styles.segmentText, mode === "period" && styles.segmentTextActive]}>Periodo</Text>
+              <Text style={[styles.segmentText, mode === "period" && styles.segmentTextActive]}>Período</Text>
             </TouchableOpacity>
           </View>
 
           {mode === "period" ? (
             <View style={styles.periodCard}>
-              <Text style={styles.sectionTitle}>Periodo personalizado</Text>
+              <Text style={styles.sectionTitle}>Período personalizado</Text>
               <View style={styles.periodRow}>
                 <View style={styles.periodCol}>
                   <Text style={styles.inputLabel}>Inicio</Text>
@@ -270,7 +270,7 @@ export default function RelatoriosScreen() {
 
           <View style={styles.summaryCard}>
             <View style={styles.summaryTop}>
-              <Text style={styles.summaryTitle}>Total do periodo</Text>
+              <Text style={styles.summaryTitle}>Total do período</Text>
               <Text style={styles.summaryCount}>{countText}</Text>
             </View>
             <Text style={styles.summaryAmount}>{formatMoney(totals.total)}</Text>
@@ -295,7 +295,7 @@ export default function RelatoriosScreen() {
           <View style={styles.attCard}>
             <Text style={styles.sectionTitle}>Por atendente</Text>
             {totals.attendants.length === 0 ? (
-              <Text style={styles.emptyText}>Sem vendas nesse periodo.</Text>
+              <Text style={styles.emptyText}>Sem vendas nesse período.</Text>
             ) : (
               totals.attendants.map((a) => (
                 <View key={a.name} style={styles.attRow}>
