@@ -151,7 +151,7 @@ export default function LoginScreen() {
             <Text style={styles.appTitle}>Banca do Robalo</Text>
           </View>
 
-          <Text style={styles.sectionTitle}>Quem esta usando?</Text>
+          <Text style={styles.sectionTitle}>Quem está usando?</Text>
 
           <View style={styles.usersBox}>
             {activeUsers.map((u) => {
