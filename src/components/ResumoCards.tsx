@@ -81,7 +81,7 @@ export default function ResumoCards({ title, start, endExclusive, containerStyle
       <Text style={styles.sectionTitle}>{title || "Resumo do dia"}</Text>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Total do periodo</Text>
+        <Text style={styles.cardTitle}>Total do período</Text>
         <Text style={styles.bigValue}>{formatMoney(summary.total)}</Text>
         <Text style={styles.cardSub}>{summary.count} comanda(s) fechada(s)</Text>
       </View>
@@ -92,7 +92,7 @@ export default function ResumoCards({ title, start, endExclusive, containerStyle
           <Text style={styles.smallValue}>{formatMoney(summary.pix)}</Text>
         </View>
         <View style={[styles.smallCard, { flex: 1 }]}>
-          <Text style={styles.smallTitle}>Cartao</Text>
+          <Text style={styles.smallTitle}>Cartão</Text>
           <Text style={styles.smallValue}>{formatMoney(summary.card)}</Text>
         </View>
         <View style={[styles.smallCard, { flex: 1 }]}>
@@ -104,7 +104,7 @@ export default function ResumoCards({ title, start, endExclusive, containerStyle
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Por atendente</Text>
         {summary.attendants.length === 0 ? (
-          <Text style={styles.muted}>Sem vendas no periodo.</Text>
+          <Text style={styles.muted}>Sem vendas no período.</Text>
         ) : (
           summary.attendants.map(([name, value]) => (
             <View key={name} style={styles.attRow}>

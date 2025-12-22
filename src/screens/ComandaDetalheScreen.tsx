@@ -33,7 +33,7 @@ const ERROR_RED = "#D32F2F";
 
 function paymentLabel(p: PaymentMethod) {
   if (p === "cash") return "Dinheiro";
-  if (p === "card") return "Cartao";
+  if (p === "card") return "Cartão";
   return "Pix";
 }
 
@@ -400,7 +400,7 @@ export default function ComandaDetalheScreen() {
                 style={[styles.payOption, payment === "card" && styles.payOptionSelected]}
                 onPress={() => setPayment("card")}
               >
-                <Text style={styles.payOptionText}>Cartao</Text>
+                <Text style={styles.payOptionText}>Cartão</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -519,7 +519,7 @@ export default function ComandaDetalheScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal transparent visible={busy} animationType="fade" onRequestClose={() => {}}>
+      <Modal transparent visible={busy} animationType="fade" onRequestClose={() => { }}>
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={WHITE} />
           <Text style={styles.loadingText}>Carregando...</Text>

@@ -84,7 +84,7 @@ function parseClosedDate(value?: string | null) {
 
 function paymentLabel(p: PaymentMethod) {
   if (p === "cash") return "Dinheiro";
-  if (p === "card") return "Cartao";
+  if (p === "card") return "Cartão";
   return "Pix";
 }
 
@@ -282,7 +282,7 @@ export default function RelatoriosScreen() {
                 <Text style={styles.paymentValue}>{formatMoney(totals.byPayment.pix)}</Text>
               </View>
               <View style={styles.paymentItem}>
-                <Text style={styles.paymentLabel}>Cartao</Text>
+                <Text style={styles.paymentLabel}>Cartão</Text>
                 <Text style={styles.paymentValue}>{formatMoney(totals.byPayment.card)}</Text>
               </View>
               <View style={styles.paymentItem}>
