@@ -63,9 +63,20 @@ export default function ResumoCards({ title, start, endExclusive, containerStyle
       total += value;
       count += 1;
 
-      if (c.paymentMethod === "pix") pix += value;
-      else if (c.paymentMethod === "card") card += value;
-      else if (c.paymentMethod === "cash") cash += value;
+      if (c.paymentSplit) {
+        const splitPix = Number(c.paymentSplit.pix || 0);
+        const splitCard = Number(c.paymentSplit.card || 0);
+        const splitCash = Number(c.paymentSplit.cash || 0);
+        pix += Number.isFinite(splitPix) ? splitPix : 0;
+        card += Number.isFinite(splitCard) ? splitCard : 0;
+        cash += Number.isFinite(splitCash) ? splitCash : 0;
+      } else if (c.paymentMethod === "pix") {
+        pix += value;
+      } else if (c.paymentMethod === "card") {
+        card += value;
+      } else if (c.paymentMethod === "cash") {
+        cash += value;
+      }
 
       const name = (c.closedBy || c.currentAttendant || "Sem nome").trim() || "Sem nome";
       byAttendant.set(name, (byAttendant.get(name) || 0) + value);

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   FlatList,
   Modal,
+  TextInput,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
@@ -16,7 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useComandas } from "../context/ComandaContext";
-import type { PaymentMethod } from "../models/firestoreModels";
+import type { PaymentMethod, PaymentSplit } from "../models/firestoreModels";
 import { USERS_MOCK } from "../data/mockUsers";
 import { useAppAlert } from "../components/AppAlert";
 
@@ -33,8 +34,30 @@ const ERROR_RED = "#D32F2F";
 
 function paymentLabel(p: PaymentMethod) {
   if (p === "cash") return "Dinheiro";
-  if (p === "card") return "Cartão";
+  if (p === "card") return "Cartao";
+  if (p === "mixed") return "Misto";
   return "Pix";
+}
+
+function formatMoney(v: number) {
+  return `R$ ${v.toFixed(2).replace(".", ",")}`;
+}
+
+function formatMoneyInput(value: string) {
+  const digits = value.replace(/\D/g, "");
+  const number = Number(digits) / 100;
+  if (!Number.isFinite(number)) return "R$ 0,00";
+  return formatMoney(number);
+}
+
+function moneyInputToNumber(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return Number(digits) / 100;
+}
+
+function numberToMoneyInput(value: number) {
+  if (!Number.isFinite(value) || value < 0) return "R$ 0,00";
+  return formatMoney(value);
 }
 
 export default function ComandaDetalheScreen() {
@@ -63,6 +86,21 @@ export default function ComandaDetalheScreen() {
   const total = getComandaTotal(comandaId);
   const closed = isComandaClosed(comandaId);
   const items = useMemo(() => comanda?.items ?? [], [comanda]);
+  const paymentBadge = useMemo(() => {
+    if (comanda?.paymentSplit) {
+      const methods = [
+        comanda.paymentSplit.pix > 0 ? "pix" : null,
+        comanda.paymentSplit.card > 0 ? "card" : null,
+        comanda.paymentSplit.cash > 0 ? "cash" : null,
+      ].filter(Boolean) as PaymentMethod[];
+
+      if (methods.length === 1) return paymentLabel(methods[0]);
+      if (methods.length > 1) return "Misto";
+    }
+
+    if (comanda?.paymentMethod) return paymentLabel(comanda.paymentMethod);
+    return null;
+  }, [comanda]);
 
   useEffect(() => {
     if (!comandaId) return;
@@ -77,7 +115,9 @@ export default function ComandaDetalheScreen() {
 
   // fechar comanda
   const [closing, setClosing] = useState(false);
-  const [payment, setPayment] = useState<PaymentMethod>("pix");
+  const [pixInput, setPixInput] = useState("R$ 0,00");
+  const [cardInput, setCardInput] = useState("R$ 0,00");
+  const [cashInput, setCashInput] = useState("R$ 0,00");
 
   // trocar atendente (modal por lista)
   const [attModal, setAttModal] = useState(false);
@@ -184,36 +224,73 @@ export default function ComandaDetalheScreen() {
       show("Sem itens", "Adicione pelo menos 1 item antes de fechar.");
       return;
     }
-    setPayment("pix");
+    setPixInput(numberToMoneyInput(Number(total) || 0));
+    setCardInput("R$ 0,00");
+    setCashInput("R$ 0,00");
     setClosing(true);
   };
 
   const confirmClose = () => {
+    const split: PaymentSplit = {
+      pix: moneyInputToNumber(pixInput),
+      card: moneyInputToNumber(cardInput),
+      cash: moneyInputToNumber(cashInput),
+    };
+
+    const toCents = (value: number) => Math.round((Number.isFinite(value) ? value : 0) * 100);
+    const sumCents = toCents(split.pix) + toCents(split.card) + toCents(split.cash);
+    const totalValue = Number(total) || 0;
+    const totalCents = toCents(totalValue);
+
+    if (sumCents !== totalCents) {
+      const sumValue = (sumCents || 0) / 100;
+      show(
+        "Valores nao fecham",
+        `A soma precisa dar ${formatMoney(totalValue)}.\nSoma atual: ${formatMoney(sumValue)}.`
+      );
+      return;
+    }
+
+    const methods = [
+      split.pix > 0 ? "pix" : null,
+      split.card > 0 ? "card" : null,
+      split.cash > 0 ? "cash" : null,
+    ].filter(Boolean) as PaymentMethod[];
+
+    const methodLabel =
+      methods.length === 1 ? paymentLabel(methods[0]) : methods.length > 1 ? "Misto" : "Pagamento";
+
     setClosing(false);
-    show("Fechar comanda", `Confirmar fechamento no ${paymentLabel(payment)}?`, [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Confirmar",
-        onPress: async () => {
-          let ok = false;
-          setBusy(true);
-          try {
-            ok = await closeComanda(comandaId, payment);
-          } finally {
-            setBusy(false);
-          }
+    show(
+      "Fechar comanda",
+      `Confirmar fechamento?\nPix: ${formatMoney(split.pix)}\nCartao: ${formatMoney(split.card)}\nDinheiro: ${formatMoney(
+        split.cash
+      )}`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Confirmar",
+          onPress: async () => {
+            let ok = false;
+            setBusy(true);
+            try {
+              ok = await closeComanda(comandaId, split);
+            } finally {
+              setBusy(false);
+            }
 
-          if (!ok) {
-            show("Ops", "Essa comanda ja estava fechada.");
-            return;
-          }
+            if (!ok) {
+              show("Ops", "Essa comanda ja estava fechada.");
+              return;
+            }
 
-          show("Comanda fechada", `Pagamento: ${paymentLabel(payment)}`, [
-            { text: "OK", onPress: () => navigation.goBack() },
-          ]);
+            show("Comanda fechada", `Pagamento: ${methodLabel}`, [
+              { text: "OK", onPress: () => navigation.goBack() },
+            ]);
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   const openTrocarAtendente = () => {
@@ -303,9 +380,9 @@ export default function ComandaDetalheScreen() {
           <View style={styles.subRow}>
             <Text style={styles.subTitle}>{closed ? "Comanda fechada" : "Comanda aberta"}</Text>
 
-            {closed && (comanda as any)?.paymentMethod ? (
+            {closed && (paymentBadge || (comanda as any)?.paymentMethod) ? (
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>{paymentLabel((comanda as any).paymentMethod)}</Text>
+                <Text style={styles.badgeText}>{paymentBadge || paymentLabel((comanda as any).paymentMethod)}</Text>
               </View>
             ) : null}
           </View>
@@ -412,29 +489,43 @@ export default function ComandaDetalheScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Fechar comanda</Text>
-            <Text style={styles.modalSub}>Escolha a forma de pagamento</Text>
+            <Text style={styles.modalSub}>Informe os valores por forma</Text>
 
             <View style={{ gap: 10 }}>
-              <TouchableOpacity
-                style={[styles.payOption, payment === "pix" && styles.payOptionSelected]}
-                onPress={() => setPayment("pix")}
-              >
-                <Text style={styles.payOptionText}>Pix</Text>
-              </TouchableOpacity>
+              <View>
+                <Text style={styles.modalLabel}>Pix</Text>
+                <TextInput
+                  value={pixInput}
+                  onChangeText={(v) => setPixInput(formatMoneyInput(v))}
+                  keyboardType="number-pad"
+                  style={styles.payInput}
+                />
+              </View>
 
-              <TouchableOpacity
-                style={[styles.payOption, payment === "card" && styles.payOptionSelected]}
-                onPress={() => setPayment("card")}
-              >
-                <Text style={styles.payOptionText}>Cartão</Text>
-              </TouchableOpacity>
+              <View>
+                <Text style={styles.modalLabel}>Cartao</Text>
+                <TextInput
+                  value={cardInput}
+                  onChangeText={(v) => setCardInput(formatMoneyInput(v))}
+                  keyboardType="number-pad"
+                  style={styles.payInput}
+                />
+              </View>
 
-              <TouchableOpacity
-                style={[styles.payOption, payment === "cash" && styles.payOptionSelected]}
-                onPress={() => setPayment("cash")}
-              >
-                <Text style={styles.payOptionText}>Dinheiro</Text>
-              </TouchableOpacity>
+              <View>
+                <Text style={styles.modalLabel}>Dinheiro</Text>
+                <TextInput
+                  value={cashInput}
+                  onChangeText={(v) => setCashInput(formatMoneyInput(v))}
+                  keyboardType="number-pad"
+                  style={styles.payInput}
+                />
+              </View>
+            </View>
+
+            <View style={styles.paySummaryRow}>
+              <Text style={styles.paySummaryLabel}>Total</Text>
+              <Text style={styles.paySummaryValue}>{formatMoney(Number(total) || 0)}</Text>
             </View>
 
             <View style={[styles.modalButtonsRow, { marginTop: 12 }]}>
@@ -712,17 +803,30 @@ const styles = StyleSheet.create({
   },
   modalRemoveText: { color: ERROR_RED, fontSize: 14, fontWeight: "900" },
 
-  payOption: {
+  payInput: {
     borderWidth: 1,
     borderColor: BORDER,
     borderRadius: 12,
-    paddingVertical: 12,
     paddingHorizontal: 12,
+    paddingVertical: 10,
     backgroundColor: WHITE,
-    alignItems: "center",
+    color: TEXT,
+    fontSize: 14,
   },
-  payOptionSelected: { borderColor: PRIMARY_GREEN, backgroundColor: "#E8F5E9" },
-  payOptionText: { fontSize: 14, fontWeight: "900", color: TEXT },
+  paySummaryRow: {
+    marginTop: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#FAFAFA",
+  },
+  paySummaryLabel: { fontSize: 13, fontWeight: "800", color: MUTED },
+  paySummaryValue: { fontSize: 13, fontWeight: "900", color: TEXT },
 
   userOption: {
     borderWidth: 1,

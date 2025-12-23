@@ -21,7 +21,13 @@ export interface AttendantHistoryItem {
 }
 
 export type OrderStatus = "open" | "closed";
-export type PaymentMethod = "pix" | "card" | "cash";
+export type PaymentMethod = "pix" | "card" | "cash" | "mixed";
+
+export type PaymentSplit = {
+  pix: number;
+  card: number;
+  cash: number;
+};
 
 export interface Order {
   id: string;
@@ -34,6 +40,7 @@ export interface Order {
   closedAt: Date | null;
   closedDate: string | null;
   paymentMethod: PaymentMethod | null;
+  paymentSplit?: PaymentSplit | null;
   closedBy: string | null;
   total: number;
 }

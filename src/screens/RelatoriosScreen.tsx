@@ -4,7 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useComandas } from "../context/ComandaContext";
-import type { PaymentMethod } from "../models/firestoreModels";
+import type { PaymentMethod, PaymentSplit } from "../models/firestoreModels";
 import { useAppAlert } from "../components/AppAlert";
 
 const PRIMARY_GREEN = "#2E7D32";
@@ -84,8 +84,25 @@ function parseClosedDate(value?: string | null) {
 
 function paymentLabel(p: PaymentMethod) {
   if (p === "cash") return "Dinheiro";
-  if (p === "card") return "Cartão";
+  if (p === "card") return "Cartao";
+  if (p === "mixed") return "Misto";
   return "Pix";
+}
+
+function paymentLabelFromSplit(split?: PaymentSplit | null, method?: PaymentMethod | null) {
+  if (split) {
+    const methods = [
+      split.pix > 0 ? "pix" : null,
+      split.card > 0 ? "card" : null,
+      split.cash > 0 ? "cash" : null,
+    ].filter(Boolean) as PaymentMethod[];
+
+    if (methods.length === 1) return paymentLabel(methods[0]);
+    if (methods.length > 1) return "Misto";
+  }
+
+  if (method) return paymentLabel(method);
+  return "Pagamento";
 }
 
 export default function RelatoriosScreen() {
@@ -143,7 +160,7 @@ export default function RelatoriosScreen() {
   }, [comandas, range, mode]);
 
   const totals = useMemo(() => {
-    const byPayment: Record<PaymentMethod, number> = {
+    const byPayment: PaymentSplit = {
       pix: 0,
       card: 0,
       cash: 0,
@@ -157,8 +174,19 @@ export default function RelatoriosScreen() {
       if (!Number.isFinite(amount)) return;
 
       total += amount;
-      if (c.paymentMethod) {
-        byPayment[c.paymentMethod] += amount;
+      if (c.paymentSplit) {
+        const splitPix = Number(c.paymentSplit.pix || 0);
+        const splitCard = Number(c.paymentSplit.card || 0);
+        const splitCash = Number(c.paymentSplit.cash || 0);
+        byPayment.pix += Number.isFinite(splitPix) ? splitPix : 0;
+        byPayment.card += Number.isFinite(splitCard) ? splitCard : 0;
+        byPayment.cash += Number.isFinite(splitCash) ? splitCash : 0;
+      } else if (c.paymentMethod === "pix") {
+        byPayment.pix += amount;
+      } else if (c.paymentMethod === "card") {
+        byPayment.card += amount;
+      } else if (c.paymentMethod === "cash") {
+        byPayment.cash += amount;
       }
 
       const att = (c.closedBy || c.currentAttendant || "Atendente").trim() || "Atendente";
@@ -322,7 +350,7 @@ export default function RelatoriosScreen() {
         </View>
       }
       renderItem={({ item }) => {
-        const method = item.paymentMethod ? paymentLabel(item.paymentMethod) : "Pagamento";
+        const method = paymentLabelFromSplit(item.paymentSplit, item.paymentMethod);
         const time = formatTime(item.closedAt);
         const subtitle = time ? `${method} - ${time}` : method;
         const total = Number(item.total || 0);

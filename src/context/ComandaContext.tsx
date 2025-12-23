@@ -18,7 +18,7 @@ import {
 
 import { firebaseApp, ensureAnonAuth } from "../firebase";
 import { SHOP_ID } from "../models/firestoreModels";
-import type { OrderStatus, PaymentMethod } from "../models/firestoreModels";
+import type { OrderStatus, PaymentMethod, PaymentSplit } from "../models/firestoreModels";
 
 export type AttendantHistoryItem = {
   name: string;
@@ -43,6 +43,7 @@ export type Comanda = {
   currentAttendant: string;
   attendantHistory: AttendantHistoryItem[];
   paymentMethod?: PaymentMethod | null;
+  paymentSplit?: PaymentSplit | null;
   closedAt?: string | null;
   closedDate?: string | null;
   closedBy?: string | null;
@@ -71,7 +72,7 @@ type ComandaContextValue = {
   changeAttendant: (comandaId: string, newName: string) => Promise<boolean>;
   cancelEmptyComanda: (comandaId: string) => Promise<boolean>;
 
-  closeComanda: (comandaId: string, paymentMethod: PaymentMethod) => Promise<boolean>;
+  closeComanda: (comandaId: string, paymentSplit: PaymentSplit) => Promise<boolean>;
 
   subscribeToComandaItems: (comandaId: string) => () => void;
 };
@@ -115,10 +116,47 @@ function normalizeHistory(list: any): AttendantHistoryItem[] {
   }));
 }
 
+function normalizePaymentMethod(value: any): PaymentMethod | null {
+  if (value === "pix" || value === "card" || value === "cash" || value === "mixed") return value;
+  return null;
+}
+
+function normalizeMoney(value: any) {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.round(n * 100) / 100;
+}
+
+function normalizePaymentSplit(data: any, total: number, paymentMethod?: PaymentMethod | null): PaymentSplit | null {
+  const raw = data?.paymentSplit;
+  if (raw && typeof raw === "object") {
+    const pix = normalizeMoney(raw.pix);
+    const card = normalizeMoney(raw.card);
+    const cash = normalizeMoney(raw.cash);
+    if (pix > 0 || card > 0 || cash > 0) {
+      return { pix, card, cash };
+    }
+  }
+
+  if (paymentMethod === "pix" || paymentMethod === "card" || paymentMethod === "cash") {
+    const value = normalizeMoney(total);
+    if (value > 0) {
+      return {
+        pix: paymentMethod === "pix" ? value : 0,
+        card: paymentMethod === "card" ? value : 0,
+        cash: paymentMethod === "cash" ? value : 0,
+      };
+    }
+  }
+
+  return null;
+}
+
 function normalizeOrder(id: string, data: any): Comanda {
   const nicknameRaw = typeof data?.nickname === "string" ? data.nickname.trim() : "";
   const status: OrderStatus = data?.status === "closed" ? "closed" : "open";
   const total = typeof data?.total === "number" ? data.total : Number(data?.total ?? 0);
+  const paymentMethod = normalizePaymentMethod(data?.paymentMethod);
 
   return {
     id,
@@ -129,7 +167,8 @@ function normalizeOrder(id: string, data: any): Comanda {
     openedAt: toIsoSafe(data?.openedAt),
     closedAt: toIsoSafe(data?.closedAt),
     closedDate: data?.closedDate ?? null,
-    paymentMethod: data?.paymentMethod ?? null,
+    paymentMethod,
+    paymentSplit: normalizePaymentSplit(data, total, paymentMethod),
     closedBy: data?.closedBy ?? null,
     total: Number.isFinite(total) ? total : 0,
   };
@@ -237,6 +276,7 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
       closedAt: null,
       closedDate: null,
       paymentMethod: null,
+      paymentSplit: null,
       closedBy: null,
       total: 0,
     };
@@ -482,7 +522,7 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const closeComanda = async (comandaId: string, paymentMethod: PaymentMethod) => {
+  const closeComanda = async (comandaId: string, paymentSplit: PaymentSplit) => {
     await ensureAnonAuth();
 
     let changed = false;
@@ -499,13 +539,36 @@ export function ComandaProvider({ children }: { children: React.ReactNode }) {
         const total = typeof data?.total === "number" ? data.total : Number(data?.total ?? 0);
         if (!Number.isFinite(total) || total <= 0) return;
 
+        const normalizeSplit = (split: PaymentSplit) => ({
+          pix: normalizeMoney(split?.pix),
+          card: normalizeMoney(split?.card),
+          cash: normalizeMoney(split?.cash),
+        });
+
+        const toCents = (value: number) => Math.round(normalizeMoney(value) * 100);
+
+        const split = normalizeSplit(paymentSplit);
+        const sumCents = toCents(split.pix) + toCents(split.card) + toCents(split.cash);
+        const totalCents = toCents(total);
+        if (sumCents !== totalCents) return;
+
+        const methods = [
+          split.pix > 0 ? "pix" : null,
+          split.card > 0 ? "card" : null,
+          split.cash > 0 ? "cash" : null,
+        ].filter(Boolean) as PaymentMethod[];
+
+        const resolvedMethod =
+          methods.length === 1 ? methods[0] : methods.length > 1 ? "mixed" : null;
+
         const now = Timestamp.now();
         const closedDate = formatClosedDate(new Date());
         const closedBy = String(data?.currentAttendant ?? "").trim() || null;
 
         tx.update(orderRef, {
           status: "closed",
-          paymentMethod,
+          paymentMethod: resolvedMethod,
+          paymentSplit: split,
           closedAt: now,
           closedDate,
           closedBy,
