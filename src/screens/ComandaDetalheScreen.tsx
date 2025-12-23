@@ -244,10 +244,13 @@ export default function ComandaDetalheScreen() {
 
     if (sumCents !== totalCents) {
       const sumValue = (sumCents || 0) / 100;
-      show(
-        "Valores nao fecham",
-        `A soma precisa dar ${formatMoney(totalValue)}.\nSoma atual: ${formatMoney(sumValue)}.`
-      );
+      setClosing(false);
+      setTimeout(() => {
+        show(
+          "Valores nao fecham",
+          `A soma precisa dar ${formatMoney(totalValue)}.\nSoma atual: ${formatMoney(sumValue)}.`
+        );
+      }, 0);
       return;
     }
 
