@@ -127,6 +127,32 @@ export default function ComandaDetalheScreen() {
     closeEdit();
   };
 
+  const confirmRemoveFromEdit = (itemId: string, name: string) => {
+    closeEdit();
+    setTimeout(() => {
+      show("Remover item", `Remover "${name}" da comanda?`, [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Remover",
+          style: "destructive",
+          onPress: async () => {
+            let ok = false;
+            setBusy(true);
+            try {
+              ok = await removeItemFromComanda(comandaId, itemId);
+            } finally {
+              setBusy(false);
+            }
+            if (!ok) {
+              if (closed) show("Comanda fechada", "Nao da pra remover itens depois de fechar.");
+              else show("Atualizando...", "Tente de novo.");
+            }
+          },
+        },
+      ]);
+    }, 0);
+  };
+
   const onLongPressItem = (itemId: string, name: string) => {
     if (closed) return;
 
@@ -490,27 +516,7 @@ export default function ComandaDetalheScreen() {
               style={[styles.modalRemoveBtn, { marginTop: 12 }]}
               onPress={() => {
                 if (!editingItemId) return;
-                show("Remover item", `Remover "${editingName}" da comanda?`, [
-                  { text: "Cancelar", style: "cancel" },
-                  {
-                    text: "Remover",
-                    style: "destructive",
-                    onPress: async () => {
-                      let ok = false;
-                      setBusy(true);
-                      try {
-                        ok = await removeItemFromComanda(comandaId, editingItemId);
-                      } finally {
-                        setBusy(false);
-                      }
-                      if (!ok) {
-                        if (closed) show("Comanda fechada", "Nao da pra remover itens depois de fechar.");
-                        else show("Atualizando...", "Tente de novo.");
-                      }
-                      closeEdit();
-                    },
-                  },
-                ]);
+                confirmRemoveFromEdit(editingItemId, editingName);
               }}
             >
               <Text style={styles.modalRemoveText}>Remover item</Text>
