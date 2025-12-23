@@ -351,8 +351,20 @@ export default function RelatoriosScreen() {
       }
       renderItem={({ item }) => {
         const method = paymentLabelFromSplit(item.paymentSplit, item.paymentMethod);
+        const split = item.paymentSplit;
+        let splitText = "";
+        if (split) {
+          const parts: string[] = [];
+          if (split.pix > 0) parts.push(`Pix ${formatMoney(split.pix)}`);
+          if (split.card > 0) parts.push(`Cartao ${formatMoney(split.card)}`);
+          if (split.cash > 0) parts.push(`Dinheiro ${formatMoney(split.cash)}`);
+          splitText = parts.join(" + ");
+        } else if (item.paymentMethod) {
+          splitText = `${paymentLabel(item.paymentMethod)} ${formatMoney(Number(item.total || 0))}`;
+        }
         const time = formatTime(item.closedAt);
-        const subtitle = time ? `${method} - ${time}` : method;
+        const subtitleBase = time ? `${method} - ${time}` : method;
+        const subtitle = splitText ? `${subtitleBase} | ${splitText}` : subtitleBase;
         const total = Number(item.total || 0);
 
         return (
