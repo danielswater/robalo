@@ -84,7 +84,7 @@ function parseClosedDate(value?: string | null) {
 
 function paymentLabel(p: PaymentMethod) {
   if (p === "cash") return "Dinheiro";
-  if (p === "card") return "Cartao";
+  if (p === "card") return "Cartão";
   if (p === "mixed") return "Misto";
   return "Pix";
 }
@@ -351,21 +351,30 @@ export default function RelatoriosScreen() {
       }
       renderItem={({ item }) => {
         const method = paymentLabelFromSplit(item.paymentSplit, item.paymentMethod);
-        const split = item.paymentSplit;
-        let splitText = "";
-        if (split) {
-          const parts: string[] = [];
-          if (split.pix > 0) parts.push(`Pix ${formatMoney(split.pix)}`);
-          if (split.card > 0) parts.push(`Cartao ${formatMoney(split.card)}`);
-          if (split.cash > 0) parts.push(`Dinheiro ${formatMoney(split.cash)}`);
-          splitText = parts.join(" + ");
-        } else if (item.paymentMethod) {
-          splitText = `${paymentLabel(item.paymentMethod)} ${formatMoney(Number(item.total || 0))}`;
-        }
-        const time = formatTime(item.closedAt);
-        const subtitleBase = time ? `${method} - ${time}` : method;
-        const subtitle = splitText ? `${subtitleBase} | ${splitText}` : subtitleBase;
         const total = Number(item.total || 0);
+        const badges = (() => {
+          const list: { key: string; label: string; amount: number; kind: "pix" | "card" | "cash" }[] = [];
+          if (item.paymentSplit) {
+            if (item.paymentSplit.pix > 0) {
+              list.push({ key: "pix", label: "Pix", amount: item.paymentSplit.pix, kind: "pix" });
+            }
+            if (item.paymentSplit.card > 0) {
+              list.push({ key: "card", label: "Cartão", amount: item.paymentSplit.card, kind: "card" });
+            }
+            if (item.paymentSplit.cash > 0) {
+              list.push({ key: "cash", label: "Dinheiro", amount: item.paymentSplit.cash, kind: "cash" });
+            }
+          } else if (item.paymentMethod === "pix") {
+            list.push({ key: "pix", label: "Pix", amount: total, kind: "pix" });
+          } else if (item.paymentMethod === "card") {
+            list.push({ key: "card", label: "Cartão", amount: total, kind: "card" });
+          } else if (item.paymentMethod === "cash") {
+            list.push({ key: "cash", label: "Dinheiro", amount: total, kind: "cash" });
+          }
+          return list;
+        })();
+        const time = formatTime(item.closedAt);
+        const subtitle = time ? `${method} - ${time}` : method;
 
         return (
           <TouchableOpacity
@@ -376,6 +385,21 @@ export default function RelatoriosScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>{item.nickname || "Sem apelido"}</Text>
                 <Text style={styles.cardSub}>{subtitle}</Text>
+                {badges.length > 0 ? (
+                  <View style={styles.badgeRow}>
+                    {badges.map((b, idx) => {
+                      const badgeStyle =
+                        b.kind === "pix" ? styles.badgePix : b.kind === "card" ? styles.badgeCard : styles.badgeCash;
+                      return (
+                        <View key={`${b.key}-${idx}`} style={[styles.badge, badgeStyle]}>
+                          <Text style={styles.badgeText}>
+                            {b.label} {formatMoney(b.amount)}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : null}
               </View>
               <Text style={styles.cardValue}>{formatMoney(Number.isFinite(total) ? total : 0)}</Text>
             </View>
@@ -498,6 +522,17 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 15, fontWeight: "900", color: TEXT },
   cardSub: { marginTop: 4, fontSize: 12, color: MUTED },
+  badgeRow: { marginTop: 6, flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  badge: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  badgeText: { fontSize: 11, fontWeight: "800", color: TEXT },
+  badgePix: { borderColor: PRIMARY_GREEN, backgroundColor: "#E8F5E9" },
+  badgeCard: { borderColor: SECONDARY_BLUE, backgroundColor: "#E3F2FD" },
+  badgeCash: { borderColor: "#F57C00", backgroundColor: "#FFF3E0" },
   cardValue: { fontSize: 14, fontWeight: "900", color: PRIMARY_GREEN },
 
   emptyCard: {

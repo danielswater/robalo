@@ -34,7 +34,7 @@ const ERROR_RED = "#D32F2F";
 
 function paymentLabel(p: PaymentMethod) {
   if (p === "cash") return "Dinheiro";
-  if (p === "card") return "Cartao";
+  if (p === "card") return "Cartão";
   if (p === "mixed") return "Misto";
   return "Pix";
 }
@@ -53,11 +53,6 @@ function formatMoneyInput(value: string) {
 function moneyInputToNumber(value: string) {
   const digits = value.replace(/\D/g, "");
   return Number(digits) / 100;
-}
-
-function numberToMoneyInput(value: number) {
-  if (!Number.isFinite(value) || value < 0) return "R$ 0,00";
-  return formatMoney(value);
 }
 
 export default function ComandaDetalheScreen() {
@@ -224,9 +219,9 @@ export default function ComandaDetalheScreen() {
       show("Sem itens", "Adicione pelo menos 1 item antes de fechar.");
       return;
     }
-    setPixInput(numberToMoneyInput(Number(total) || 0));
-    setCardInput("R$ 0,00");
-    setCashInput("R$ 0,00");
+    setPixInput("");
+    setCardInput("");
+    setCashInput("");
     setClosing(true);
   };
 
@@ -266,7 +261,7 @@ export default function ComandaDetalheScreen() {
     setClosing(false);
     show(
       "Fechar comanda",
-      `Confirmar fechamento?\nPix: ${formatMoney(split.pix)}\nCartao: ${formatMoney(split.card)}\nDinheiro: ${formatMoney(
+      `Confirmar fechamento?\nPix: ${formatMoney(split.pix)}\nCartão: ${formatMoney(split.card)}\nDinheiro: ${formatMoney(
         split.cash
       )}`,
       [
@@ -506,7 +501,7 @@ export default function ComandaDetalheScreen() {
               </View>
 
               <View>
-                <Text style={styles.modalLabel}>Cartao</Text>
+                <Text style={styles.modalLabel}>Cartão</Text>
                 <TextInput
                   value={cardInput}
                   onChangeText={(v) => setCardInput(formatMoneyInput(v))}
